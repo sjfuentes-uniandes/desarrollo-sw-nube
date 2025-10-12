@@ -64,8 +64,6 @@ Thumbs.db
 *.log
 logs/
 
-# Docker
-.dockerignore
 
 # SonarQube
 .scannerwork/
