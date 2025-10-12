@@ -37,7 +37,7 @@ class Config:
 # ---------------------------------------------------------------------
 
 class VideoResponse(BaseModel):
-    video_id: int
+    video_id: int = Field(validation_alias="id")
     title: str
     status: VideoStatus
     uploaded_at: datetime
@@ -46,5 +46,7 @@ class VideoResponse(BaseModel):
     processed_url: Optional[str] | None
     votes: int
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+        "populate_by_name": True,
+    }
