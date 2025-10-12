@@ -26,6 +26,8 @@ jobs:
     - name: Run tests with coverage
       run: |
         pytest test/ -v --cov=src --cov-report=xml --junitxml=test-results.xml
+      env:
+        SECRET_KEY: ${{ secrets.SECRET_KEY }}
 
   sonarqube:
     name: SonarQube
