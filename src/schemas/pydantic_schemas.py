@@ -1,3 +1,5 @@
+import enum
+from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, Field, EmailStr
 
@@ -26,3 +28,21 @@ class UserSchema(BaseUser):
 
 class Config:
     orm_mode = True
+
+# ---------------------------------------------------------------------
+# Video schema
+# ---------------------------------------------------------------------
+
+class VideoStatus(str, enum.Enum):
+    processed = 'processed'
+    uploaded = 'uploaded'
+
+class VideoResponse(BaseModel):
+    video_id: int
+    title: str
+    status: VideoStatus
+    uploaded_at: datetime
+    processed_at: Optional[datetime]
+    original_url: Optional[str]
+    processed_url: Optional[str]
+    votes: int
