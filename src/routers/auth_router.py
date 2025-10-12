@@ -21,7 +21,7 @@ async def login_user(user: UsuarioLoginSchema, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciales inválidas.")
     expires_delta = timedelta(minutes=ACCESS_TOKEN_EXPIRE_SECONDS)
     access_token_data = {
-        'sub': db_user.first_name,
+        'sub': str(db_user.id),
         'exp': datetime.now(timezone.utc) + expires_delta
     }
     return {
@@ -31,16 +31,18 @@ async def login_user(user: UsuarioLoginSchema, db: Session = Depends(get_db)):
     }
 
 
-async def verify_token(token: str = Depends(oauth2_scheme)):
+async def verify_token(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get('sub')
-        if username is None:
+        user_id: str = payload.get('sub')
+        if user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail='Credenciales de autenticación inválidas.',
                 headers={'WWW-Authenticate': 'Bearer'})
-        return username
+
+        db_user = db.query(User).filter(User.id == user_id).first()
+        return db_user
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -25,6 +25,7 @@ class Video(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(255), nullable=False)
     status = Column(Enum(VideoStatus), default=VideoStatus.processed)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     uploaded_at = Column(DateTime, server_default=func.now())
     processed_at = Column(DateTime, nullable=True)
     original_url = Column(String(255), nullable=True)

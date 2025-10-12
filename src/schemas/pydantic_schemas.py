@@ -3,6 +3,9 @@ from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, Field, EmailStr
 
+from src.models.db_models import VideoStatus
+
+
 class BaseUser(BaseModel):
     first_name: str = Field(min_length=1, max_length=100)
     last_name: str = Field(min_length=1, max_length=100)
@@ -33,16 +36,15 @@ class Config:
 # Video schema
 # ---------------------------------------------------------------------
 
-class VideoStatus(str, enum.Enum):
-    processed = 'processed'
-    uploaded = 'uploaded'
-
 class VideoResponse(BaseModel):
     video_id: int
     title: str
     status: VideoStatus
     uploaded_at: datetime
-    processed_at: Optional[datetime]
-    original_url: Optional[str]
-    processed_url: Optional[str]
+    processed_at: Optional[datetime] | None
+    original_url: Optional[str] | None
+    processed_url: Optional[str] | None
     votes: int
+
+    class Config:
+        from_attributes = True
