@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from src.db.database import engine
 from src.models import db_models
+from src.routers.video_router import video_router
 from src.routers.usuario_router import user_router
 from src.routers.auth_router import auth_router
 
@@ -14,3 +15,4 @@ async def read_root():
 
 app.include_router(router=user_router)
 app.include_router(router=auth_router)
+app.include_router(router=video_router)

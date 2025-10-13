@@ -1,5 +1,10 @@
+import enum
+from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, Field, EmailStr
+
+from src.models.db_models import VideoStatus
+
 
 class BaseUser(BaseModel):
     first_name: str = Field(min_length=1, max_length=100)
@@ -26,3 +31,22 @@ class UserSchema(BaseUser):
 
 class Config:
     orm_mode = True
+
+# ---------------------------------------------------------------------
+# Video schema
+# ---------------------------------------------------------------------
+
+class VideoResponse(BaseModel):
+    video_id: int = Field(validation_alias="id")
+    title: str
+    status: VideoStatus
+    uploaded_at: datetime
+    processed_at: Optional[datetime] | None
+    original_url: Optional[str] | None
+    processed_url: Optional[str] | None
+    votes: int
+
+    model_config = {
+        "from_attributes": True,
+        "populate_by_name": True,
+    }
