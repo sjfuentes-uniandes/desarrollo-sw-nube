@@ -1,28 +1,159 @@
 # Colección Postman - API Desarrollo SW Nube
 
-## Descripción
-Esta colección contiene pruebas automatizadas para todos los endpoints de la API con escenarios de prueba completos.
+## Descripción de la Aplicación
+
+### ¿Qué es esta API?
+Esta es una **API REST de autenticación de usuarios** desarrollada con tecnologías modernas que permite:
+
+- 🔐 **Registro seguro de usuarios** con validación robusta de datos
+- 🔑 **Autenticación JWT** para sesiones seguras
+- 🛡️ **Encriptación de contraseñas** con bcrypt
+- 📊 **Base de datos PostgreSQL** para persistencia
+- 🐳 **Contenedorización completa** con Docker
+- 🔄 **Proxy reverso Nginx** para producción
+- ✅ **Pruebas automatizadas** y análisis de código
+
+### Arquitectura
+```
+Cliente → Nginx (Puerto 80) → FastAPI (Puerto 8000) → PostgreSQL (Puerto 5432)
+```
+
+### Casos de Uso
+- **Aplicaciones web** que necesiten sistema de usuarios
+- **APIs móviles** con autenticación segura
+- **Microservicios** de autenticación
+- **Sistemas empresariales** con gestión de acceso
+
+## Quick Start - ¡Empezar en 5 minutos!
+
+### Paso 1: Preparar el Entorno
+```bash
+# 1. Clonar el repositorio
+git clone <repository-url>
+cd desarrollo-sw-nube
+
+# 2. Crear archivo de configuración
+touch .env
+```
+
+### Paso 2: Configurar Variables (.env)
+Copiar este contenido en el archivo `.env`:
+```env
+# Database
+DATABASE_URL=postgresql://postgres:postgres@postgres:5432/desarrollo_sw_nube
+POSTGRES_DB=desarrollo_sw_nube
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+
+# JWT (generar clave segura)
+SECRET_KEY=tu-clave-secreta-de-64-caracteres-aqui
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_SECONDS=3600
+```
+
+**Generar SECRET_KEY:**
+```bash
+# Ejecutar uno de estos comandos:
+openssl rand -hex 32
+# O
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+### Paso 3: Levantar la Aplicación
+```bash
+# Iniciar todos los servicios
+docker-compose up -d
+
+# Verificar que funciona
+curl http://localhost/
+# Debe retornar: "Healthcheck"
+```
+
+### Paso 4: Probar con Postman
+1. **Importar colección**: `desarrollo-sw-nube-api.postman_collection.json`
+2. **Importar entorno**: `postman_environment.json`
+3. **Ejecutar requests** en orden:
+   - Health Check
+   - User Signup
+   - User Login
+
+### Paso 5: Pruebas Automatizadas (Opcional)
+```bash
+# Instalar Newman
+npm install -g newman newman-reporter-html
+
+# Ejecutar todas las pruebas
+newman run collections/desarrollo-sw-nube-api.postman_collection.json \
+  -e collections/postman_environment.json \
+  --env-var "base_url=http://localhost"
+```
+
+## Descripción de la Colección
+Esta colección contiene pruebas automatizadas para todos los endpoints de la API con múltiples escenarios de prueba por endpoint.
 
 ## Archivos
 - `desarrollo-sw-nube-api.postman_collection.json` - Colección principal con requests y pruebas
 - `postman_environment.json` - Variables de entorno para diferentes escenarios de despliegue
 
-## Endpoints Incluidos
-1. **Health Check** - `GET /`
-2. **Registro de Usuario** - `POST /api/auth/signup`
-3. **Login de Usuario** - `POST /api/auth/login`
+## Endpoints y Escenarios Incluidos
 
-## Escenarios de Prueba
-### Casos Exitosos
-- Health check retorna 200
-- Registro de usuario con datos válidos
-- Login con credenciales correctas
+### 1. Health Check - `GET /`
+**Escenarios:**
+- ✅ **Éxito (200)**: Verificación de que la API está funcionando
 
-### Casos de Error
-- Contraseñas no coinciden en registro (400)
-- Email duplicado en registro (400)
-- Credenciales inválidas en login (401)
-- Contraseña incorrecta para usuario existente (401)
+### 2. Registro de Usuario - `POST /api/auth/signup`
+**Escenarios en la colección:**
+- ✅ **Éxito (201)**: Usuario creado correctamente
+  ```json
+  {
+    "first_name": "Juan",
+    "last_name": "Pérez",
+    "email": "juan{{$timestamp}}@example.com",
+    "password1": "mipassword123",
+    "password2": "mipassword123"
+  }
+  ```
+
+- ❌ **Error 400**: Contraseñas no coinciden
+  ```json
+  {
+    "password1": "password123",
+    "password2": "different456"
+  }
+  ```
+
+- ❌ **Error 400**: Email duplicado
+  ```json
+  {
+    "email": "usuario-existente@example.com"
+  }
+  ```
+
+### 3. Login de Usuario - `POST /api/auth/login`
+**Escenarios en la colección:**
+- ✅ **Éxito (200)**: Login correcto, retorna JWT
+  ```json
+  {
+    "email": "{{test_email}}",
+    "password": "testpass123"
+  }
+  ```
+
+- ❌ **Error 401**: Usuario no existe
+  ```json
+  {
+    "email": "noexiste@example.com",
+    "password": "cualquiera"
+  }
+  ```
+
+- ❌ **Error 401**: Contraseña incorrecta
+  ```json
+  {
+    "email": "usuario-valido@example.com",
+    "password": "password-incorrecto"
+  }
+  ```
 
 ## Prerrequisitos
 
@@ -123,11 +254,83 @@ docker-compose down
 - `deploy_url`: URL de la API desplegada (reemplazar con IP del servidor)
 - `access_token`: Token JWT (se establece automáticamente por la prueba de login)
 
-## Mensajes de Error Documentados
-- **400 Bad Request**: "Las contraseñas no coinciden" / "Email ya está registrado"
-- **401 Unauthorized**: "Credenciales inválidas"
-- **200 OK**: Operaciones exitosas
-- **201 Created**: Usuario creado exitosamente
+## Ejemplos de Request/Response
+
+### Health Check
+```http
+GET http://localhost/
+```
+**Response 200:**
+```json
+"Healthcheck"
+```
+
+### Registro Exitoso
+```http
+POST http://localhost/api/auth/signup
+Content-Type: application/json
+
+{
+  "first_name": "Ana",
+  "last_name": "García",
+  "email": "ana@example.com",
+  "city": "Bogotá",
+  "country": "Colombia",
+  "password1": "mipassword123",
+  "password2": "mipassword123"
+}
+```
+**Response 201:**
+```json
+{
+  "id": 1,
+  "first_name": "Ana",
+  "last_name": "García",
+  "email": "ana@example.com",
+  "city": "Bogotá",
+  "country": "Colombia"
+}
+```
+
+### Login Exitoso
+```http
+POST http://localhost/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "ana@example.com",
+  "password": "mipassword123"
+}
+```
+**Response 200:**
+```json
+{
+  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+  "token_type": "bearer"
+}
+```
+
+### Errores Comunes
+**400 - Contraseñas no coinciden:**
+```json
+{
+  "detail": "Las contraseñas no coinciden."
+}
+```
+
+**400 - Email duplicado:**
+```json
+{
+  "detail": "Email ya está registrado."
+}
+```
+
+**401 - Credenciales inválidas:**
+```json
+{
+  "detail": "Credenciales inválidas."
+}
+```
 
 ## Arquitectura de Servicios
 La aplicación usa Docker Compose con:
