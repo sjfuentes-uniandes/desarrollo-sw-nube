@@ -31,27 +31,23 @@ async def get_video(video_id: int,db: Session = Depends(get_db), current_user: U
 
     return video_response
 
-@video_router.delete('api/videos/{video_id}',response_model=dict, status_code=status.HTTP_200_OK)
+@video_router.delete('/api/videos/{video_id}',response_model=dict, status_code=status.HTTP_200_OK)
 async def delete_video(video_id:int, db: Session = Depends(get_db), current_user: User = Depends(verify_token)):
-    try:
-        exist_video = db.query(Video).filter(Video.id == video_id).first()
-        if not exist_video:
-            raise HTTPException(status_code=404, detail="Video not found")
-        if exist_video.user_id != current_user.id:
-            raise HTTPException(status_code=403, detail="You are not authorized")
+    exist_video = db.query(Video).filter(Video.id == video_id).first()
+    if not exist_video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    if exist_video.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You are not authorized")
 
-        if exist_video.status == VideoStatus.public:
-            raise HTTPException(status_code=400, detail="Video is public")
+    if exist_video.status == VideoStatus.public:
+        raise HTTPException(status_code=400, detail="Video is public")
 
-        db.delete(exist_video)
-        db.commit()
-        return {
-            'message': 'El video ha sido eliminado exitosamente.',
-            'video_id': video_id
-        }
-    except Exception as e:
-        print(e)
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+    db.delete(exist_video)
+    db.commit()
+    return {
+        'message': 'El video ha sido eliminado exitosamente.',
+        'video_id': video_id
+    }
 
 
 

@@ -124,11 +124,11 @@ def test_login_wrong_password(client):
     assert "Credenciales inválidas" in response.json()["detail"]
 
 # ---------------------- GET /api/videos/{video_id} ----------------------
-def create_test_user(db):
+def create_test_user(db,email="test_1@gmail.com"):
     user = User(
         first_name="John",
         last_name="Doe",
-        email="test_1@gmail.com",
+        email=email,
         password_hash=get_password_hash("mipassword123"),
         city="Bogota",
         country="Colombia",
@@ -182,8 +182,10 @@ def test_get_video_unauthorized(client):
     user_a = create_test_user(db)
     video = create_test_video(db, user_a)
 
-    user_b = create_test_user(db)
-    response = client.get(f"/api/videos/{video.id}", headers=auth_header(user_b))
+    user_b = create_test_user(db,email="test_2@gmail.com")
+    headers = auth_header(client, user_b.email)
+
+    response = client.get(f"/api/videos/{video.id}", headers=headers)
 
     assert response.status_code == 403
     assert response.json()["detail"] == "You are not authorized"
@@ -197,10 +199,12 @@ def test_get_video_success(client):
     db.add(vote)
     db.commit()
 
-    response = client.get(f"/api/videos/{video.id}", headers=auth_header(user))
+    headers = auth_header(client, user.email)
+
+    response = client.get(f"/api/videos/{video.id}", headers=headers)
     assert response.status_code == 200
     data = response.json()
-    assert data["id"] == video.id
+    assert data["video_id"] == video.id
     assert data["votes"] == 1
 
 # ---------------------- DELETE /api/videos/{video_id} ----------------------
@@ -208,8 +212,11 @@ def test_get_video_success(client):
 def test_delete_video_not_found(client):
     db = TestingSessionLocal()
     user = create_test_user(db)
+    headers = auth_header(client, user.email)
 
-    response = client.delete("/api/videos/999", headers=auth_header(user))
+    response = client.delete("/api/videos/999", headers=headers)
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Video not found"
     assert response.status_code == 404
     assert response.json()["detail"] == "Video not found"
 
@@ -217,9 +224,10 @@ def test_delete_video_unauthorized(client):
     db = TestingSessionLocal()
     user_a = create_test_user(db)
     video = create_test_video(db, user_a)
-    user_b = create_test_user(db)
+    user_b = create_test_user(db,"test_02@gmail.com")
+    headers = auth_header(client, user_b.email)
 
-    response = client.delete(f"/api/videos/{video.id}", headers=auth_header(user_b))
+    response = client.delete(f"/api/videos/{video.id}", headers=headers)
     assert response.status_code == 403
     assert response.json()["detail"] == "You are not authorized"
 
@@ -227,8 +235,10 @@ def test_delete_video_public(client):
     db = TestingSessionLocal()
     user = create_test_user(db)
     video = create_test_video(db, user, VideoStatus.public)
+    headers = auth_header(client, user.email)
 
-    response = client.delete(f"/api/videos/{video.id}", headers=auth_header(user))
+
+    response = client.delete(f"/api/videos/{video.id}", headers=headers)
     assert response.status_code == 400
     assert response.json()["detail"] == "Video is public"
 
@@ -236,8 +246,10 @@ def test_delete_video_success(client):
     db = TestingSessionLocal()
     user = create_test_user(db)
     video = create_test_video(db, user)
+    headers = auth_header(client, user.email)
 
-    response = client.delete(f"/api/videos/{video.id}", headers=auth_header(user))
+
+    response = client.delete(f"/api/videos/{video.id}", headers=headers)
     assert response.status_code == 200
     data = response.json()
     assert data["message"] == "El video ha sido eliminado exitosamente."
