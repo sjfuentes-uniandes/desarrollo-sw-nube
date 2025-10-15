@@ -7,11 +7,12 @@ from datetime import datetime
 
 from src.models.db_models import Video, Vote, VideoStatus
 from src.routers.auth_router import verify_token
-from src.schemas.pydantic_schemas import VideoResponse, VideoUploadResponse
+from src.schemas.pydantic_schemas import VideoResponse, VideoUploadResponse, VideoListItem
 from sqlalchemy.orm import Session
 from src.db.database import get_db
 from src.models.db_models import User
 from src.tasks.video_tasks import process_video_task
+from typing import List
 
 
 
@@ -125,6 +126,33 @@ async def upload_video(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al subir el video: {str(e)}"
+        )
+
+
+@video_router.get("/api/videos", response_model=List[VideoListItem], status_code=status.HTTP_200_OK)
+async def list_user_videos(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(verify_token)
+):
+    """
+    Lista todos los videos subidos por el usuario autenticado.
+    
+    Muestra el estado de cada video (uploaded o processed) junto con sus datos.
+            
+    **Códigos de respuesta:**
+    - 200: Lista de videos obtenida
+    - 401: Falta de autenticación
+    """
+    try:
+        # Obtener todos los videos del usuario autenticado
+        videos = db.query(Video).filter(Video.user_id == current_user.id).order_by(Video.uploaded_at.desc()).all()
+        
+        return videos
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al obtener la lista de videos: {str(e)}"
         )
 
 
