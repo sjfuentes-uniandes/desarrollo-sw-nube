@@ -36,6 +36,11 @@ class Config:
 # Video schema
 # ---------------------------------------------------------------------
 
+class VideoUploadResponse(BaseModel):
+    """Respuesta al subir un video"""
+    message: str
+    task_id: str
+
 class VideoResponse(BaseModel):
     video_id: int = Field(validation_alias="id")
     title: str
