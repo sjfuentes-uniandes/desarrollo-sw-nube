@@ -19,6 +19,7 @@ class User(Base):
 class VideoStatus(enum.Enum):
     processed = 'processed'
     uploaded = 'uploaded'
+    public = 'public'
 
 class Video(Base):
     __tablename__ = "videos"
