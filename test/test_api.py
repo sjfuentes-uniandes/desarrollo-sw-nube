@@ -130,7 +130,6 @@ def test_login_wrong_password(client):
     assert response.status_code == 401
     assert "Credenciales inválidas" in response.json()["detail"]
 
-# ---------------------- GET /api/videos/{video_id} ----------------------
 def create_test_user(db,email="test_1@gmail.com"):
     user = User(
         first_name="John",
@@ -214,8 +213,6 @@ def test_get_video_success(client):
     assert data["video_id"] == video.id
     assert data["votes"] == 1
 
-# ---------------------- DELETE /api/videos/{video_id} ----------------------
-
 def test_delete_video_not_found(client):
     db = TestingSessionLocal()
     user = create_test_user(db)
@@ -262,10 +259,6 @@ def test_delete_video_success(client):
     assert data["message"] == "El video ha sido eliminado exitosamente."
     assert data["video_id"] == video.id
 
-# ============================================================================
-# FIXTURES PARA TESTS DE VIDEO
-# ============================================================================
-
 @pytest.fixture
 def auth_headers(client):
     """Headers de autenticación para usuario de prueba"""
@@ -284,11 +277,6 @@ def auth_headers(client):
     
     token = login_response.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
-
-
-# ============================================================================
-# PRUEBAS PARA POST /api/videos/upload
-# ============================================================================
 
 class TestVideoUpload:
     """Pruebas para el endpoint de subida de videos"""
@@ -392,7 +380,7 @@ class TestVideoUpload:
             # No se envía 'title'
         )
         
-        assert response.status_code == 422  # Validation error
+        assert response.status_code == 422 
     
     @patch('src.routers.video_router.process_video_task.delay')
     def test_upload_video_missing_file(self, mock_task, client, auth_headers):
@@ -463,7 +451,6 @@ class TestVideoUpload:
         assert response1.status_code == 201
         assert response2.status_code == 201
         
-        # Los archivos deben tener nombres diferentes (timestamp)
         db = TestingSessionLocal()
         videos = db.query(Video).all()
         
@@ -504,11 +491,6 @@ class TestVideoUpload:
         # Debe retornar error 500
         assert response.status_code == 500
         assert "Error al subir el video" in response.json()["detail"]
-
-
-# ============================================================================
-# PRUEBAS PARA GET /api/videos
-# ============================================================================
 
 class TestListVideos:
     """Pruebas para el endpoint de listar videos"""
@@ -662,11 +644,6 @@ class TestListVideos:
         assert videos[0]["title"] == "Second Video"
         assert videos[1]["title"] == "First Video"
 
-
-# ============================================================================
-# PRUEBAS PARA GET /api/videos/{video_id}
-# ============================================================================
-
 class TestGetVideo:
     """Pruebas para el endpoint de obtener video por ID"""
     
@@ -805,11 +782,6 @@ class TestGetVideo:
         assert isinstance(data["votes"], int)
         assert data["votes"] == 0  # Sin votos por ahora
 
-
-# ============================================================================
-# PRUEBAS DE INTEGRACIÓN - VIDEO WORKFLOW
-# ============================================================================
-
 class TestVideoWorkflow:
     """Pruebas del flujo completo de videos"""
     
@@ -842,11 +814,6 @@ class TestVideoWorkflow:
         get_response = client.get(f"/api/videos/{video_id}", headers=auth_headers)
         assert get_response.status_code == 200
         assert get_response.json()["title"] == "Workflow Test"
-
-
-# ============================================================================
-# PRUEBAS PARA video_tasks.py - DatabaseTask
-# ============================================================================
 
 class TestDatabaseTask:
     """Pruebas para la clase DatabaseTask"""
@@ -894,11 +861,6 @@ class TestDatabaseTask:
         # No debe lanzar excepción
         task.after_return()
         assert task._db is None
-
-
-# ============================================================================
-# PRUEBAS PARA GET /api/public/rankings
-# ============================================================================
 
 class TestPublicRankings:
     """Pruebas para el endpoint público de rankings"""
@@ -1187,11 +1149,6 @@ class TestPublicRankings:
         assert len(bogota_rankings) == 2
         assert bogota_rankings[0]["username"] == "Super Star"
         assert bogota_rankings[1]["username"] == "New Player"
-
-
-# ============================================================================
-# PRUEBAS PARA video_tasks.py - process_video_task
-# ============================================================================
 
 class TestProcessVideoTask:
     """Pruebas para process_video_task"""
@@ -1530,4 +1487,4 @@ class TestProcessVideoTask:
         result = process_video_task(1)
         
         assert result["success"] is False
-        # No debe lanzar excepción, debe manejarla
+
