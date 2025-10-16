@@ -6,6 +6,12 @@
 .env
 .env.*
 
+#Docs
+docs/*
+capacity_planning/*
+sustentacion/*
+collections/*
+
 # Python
 __pycache__
 *.pyc
