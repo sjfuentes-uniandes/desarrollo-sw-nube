@@ -36,8 +36,8 @@ class Video(Base):
 class Vote(Base):
     __tablename__ = "votes"
     id = Column(Integer, primary_key=True, index=True)
-    video_id = Column(Integer, ForeignKey('videos.id'), nullable=False)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    video_id = Column(Integer, ForeignKey('videos.id'), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
     processed_at = Column(DateTime, server_default=func.now())
 
     __table_args__ = (UniqueConstraint('video_id', 'user_id'),)

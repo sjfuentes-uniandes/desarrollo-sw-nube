@@ -41,6 +41,20 @@ class VideoUploadResponse(BaseModel):
     message: str
     task_id: str
 
+class VideoListItem(BaseModel):
+    """Item de video en la lista de videos del usuario"""
+    video_id: int = Field(validation_alias="id")
+    title: str
+    status: VideoStatus
+    uploaded_at: datetime
+    processed_at: Optional[datetime] = None
+    processed_url: Optional[str] = None
+
+    model_config = {
+        "from_attributes": True,
+        "populate_by_name": True,
+    }
+
 class VideoResponse(BaseModel):
     video_id: int = Field(validation_alias="id")
     title: str
@@ -50,6 +64,17 @@ class VideoResponse(BaseModel):
     original_url: Optional[str] | None
     processed_url: Optional[str] | None
     votes: int
+
+    model_config = {
+        "from_attributes": True,
+        "populate_by_name": True,
+    }
+
+class PublicVideoItem(VideoListItem):
+    votes: int
+    status: None = None #str = Field(None, exclude=True)
+    owner_name: Optional[str] = None
+    owner_city: Optional[str] = None
 
     model_config = {
         "from_attributes": True,
