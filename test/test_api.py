@@ -14,6 +14,7 @@ from src.main import app
 from src.db.database import get_db, Base
 from src.models.db_models import User, VideoStatus, Video, Vote
 from src.core.security import create_access_token, get_password_hash
+from src.tasks.video_tasks import process_video_task, DatabaseTask
 
 # Test database
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
