@@ -8,7 +8,10 @@ passlib[bcrypt]==1.7.4
 bcrypt==3.2.2
 PyJWT==2.8.0
 python-dotenv==1.0.0
-psycopg2-binary==2.9.9
+psycopg2-binary
+aiofiles
+celery
+redis>=4.0.0
 celery==5.4.0
 redis==5.0.8
 ffmpeg-python==0.2.0

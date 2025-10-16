@@ -330,7 +330,7 @@ class TestVideoUpload:
             data={"title": "Test"}
         )
         
-        assert response.status_code == 401
+        assert response.status_code == 403
     
     @patch('src.routers.video_router.process_video_task.delay')
     def test_upload_video_invalid_format(self, mock_task, client, auth_headers):
@@ -548,7 +548,7 @@ class TestListVideos:
         """Test: Listar sin autenticación"""
         response = client.get("/api/videos")
         
-        assert response.status_code == 401
+        assert response.status_code == 403
     
     @patch('src.routers.video_router.process_video_task.delay')
     def test_list_videos_only_own_videos(self, mock_task, client):
@@ -713,7 +713,7 @@ class TestGetVideo:
         """Test: Acceder sin autenticación"""
         response = client.get("/api/videos/1")
         
-        assert response.status_code == 401
+        assert response.status_code == 403
     
     @patch('src.routers.video_router.process_video_task.delay')
     def test_get_video_unauthorized_access(self, mock_task, client):

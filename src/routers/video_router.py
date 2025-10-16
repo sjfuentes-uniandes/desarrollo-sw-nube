@@ -188,8 +188,26 @@ async def delete_video(video_id:int, db: Session = Depends(get_db), current_user
     if exist_video.status == VideoStatus.public:
         raise HTTPException(status_code=400, detail="Video is public")
 
+    # Eliminar archivos físicos
+    files_to_delete = []
+    if exist_video.original_url:
+        files_to_delete.append(exist_video.original_url)
+    if exist_video.processed_url:
+        files_to_delete.append(exist_video.processed_url)
+    
+    # Eliminar de la base de datos primero
     db.delete(exist_video)
     db.commit()
+    
+    # Eliminar archivos físicos después del commit
+    for file_path in files_to_delete:
+        try:
+            if os.path.exists(file_path):
+                await aiofiles.os.remove(file_path)
+        except Exception as e:
+            # Log error pero no fallar la operación
+            print(f"Error eliminando archivo {file_path}: {e}")
+    
     return {
         'message': 'El video ha sido eliminado exitosamente.',
         'video_id': video_id

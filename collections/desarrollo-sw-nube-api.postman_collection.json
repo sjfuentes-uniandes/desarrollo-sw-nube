@@ -1,0 +1,1289 @@
+{
+	"info": {
+		"_postman_id": "desarrollo-sw-nube-api",
+		"name": "Desarrollo SW Nube API",
+		"description": "# API de Competencia de Habilidades de Jugadores\n\n## Descripción\nAPI REST completa desarrollada con **FastAPI** para una plataforma de competencia de habilidades, incluyendo autenticación, gestión de videos y sistema de rankings.\n\n### 🎆 Características Principales\n- 🔐 **Autenticación JWT** - Registro y login seguro\n- 🎥 **Gestión de Videos** - Subida, procesamiento y eliminación\n- 🏆 **Sistema de Rankings** - Clasificación por votos\n- ⚡ **Procesamiento Asíncrono** - Videos procesados con Celery\n- 📊 **API Pública** - Rankings sin autenticación\n- 🛡️ **Seguridad** - Encriptación bcrypt y JWT\n- 🐳 **Contenedorización** - Docker y Docker Compose\n- ✅ **Pruebas** - Suite completa de tests\n\n### 🚀 Quick Start\n1. **Levantar servicios**: `docker-compose up -d`\n2. **Verificar**: `curl http://localhost/`\n3. **Ver docs**: `http://localhost/docs`\n4. **Probar endpoints** en orden: Health Check → Signup → Login → Upload Video → Rankings\n\n### 📊 Endpoints Disponibles\n\n#### 🔐 Autenticación\n- **POST /api/auth/signup** - Registro de usuarios\n- **POST /api/auth/login** - Login y obtención de JWT\n\n#### 🎥 Gestión de Videos (Requiere Auth)\n- **POST /api/videos/upload** - Subir video MP4 (máx 100MB)\n- **GET /api/videos** - Listar videos del usuario\n- **GET /api/videos/{id}** - Detalles de video específico\n- **DELETE /api/videos/{id}** - Eliminar video\n\n#### 🏆 Rankings Públicos\n- **GET /api/public/rankings** - Ranking por votos (con paginación y filtros)\n\n#### 🔍 Utilidades\n- **GET /** - Health check\n\n### 📝 Variables de Entorno\n- `base_url`: URL base de la API (http://localhost)\n- `access_token`: JWT token (se guarda automáticamente)\n- `test_email`: Email del usuario de prueba\n- `test_video_id`: ID del video para pruebas\n\n## 🛠️ Configuración\n\n### Paso 1: Preparar el Entorno\n```bash\n# 1. Clonar el repositorio\ngit clone <repository-url>\ncd desarrollo-sw-nube\n\n# 2. Crear archivo de configuración\ncp .env.example .env\n```\n\n### Paso 2: Variables de Entorno (.env)\n```env\n# Base de datos\nDATABASE_URL=postgresql://postgres:postgres@postgres:5432/desarrollo_sw_nube\nPOSTGRES_DB=desarrollo_sw_nube\nPOSTGRES_USER=postgres\nPOSTGRES_PASSWORD=postgres\n\n# JWT Security\nSECRET_KEY=tu-clave-secreta-de-64-caracteres-aqui\nALGORITHM=HS256\nACCESS_TOKEN_EXPIRE_SECONDS=3600\n\n# Redis/Celery\nREDIS_URL=redis://redis:6379/0\n```\n\n**Generar SECRET_KEY segura:**\n```bash\nopenssl rand -hex 32\n# O\npython -c \"import secrets; print(secrets.token_hex(32))\"\n```\n\n### Paso 3: Levantar Servicios\n```bash\n# Iniciar todos los servicios\ndocker-compose up -d\n\n# Verificar estado\ndocker-compose ps\n\n# Ver logs\ndocker-compose logs -f\n```\n\n### Paso 4: Verificar Instalación\n```bash\n# Health check\ncurl http://localhost/\n# Respuesta: \"Healthcheck\"\n\n# Ver documentación interactiva\nopen http://localhost/docs\n```\n\n## 📚 Guía de Uso\n\n### Flujo Completo de Pruebas\n1. **Health Check** - Verificar que la API funciona\n2. **User Signup** - Crear cuenta de usuario\n3. **User Login** - Obtener token JWT (se guarda automáticamente)\n4. **Upload Video** - Subir video MP4\n5. **List User Videos** - Ver videos subidos (guarda video_id)\n6. **Get Video Details** - Ver detalles y votos\n7. **Public Rankings** - Ver ranking de jugadores\n8. **Delete Video** - Eliminar video (opcional)\n\n### Ejemplos de Uso\n\n#### Registro y Autenticación\n```bash\n# Registro\ncurl -X POST http://localhost/api/auth/signup \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"first_name\": \"Juan\",\n    \"last_name\": \"Pérez\",\n    \"email\": \"juan@example.com\",\n    \"city\": \"Bogotá\",\n    \"country\": \"Colombia\",\n    \"password1\": \"mipassword123\",\n    \"password2\": \"mipassword123\"\n  }'\n\n# Login\ncurl -X POST http://localhost/api/auth/login \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"email\": \"juan@example.com\",\n    \"password\": \"mipassword123\"\n  }'\n```\n\n#### Gestión de Videos\n```bash\n# Subir video\ncurl -X POST http://localhost/api/videos/upload \\\n  -H \"Authorization: Bearer YOUR_TOKEN\" \\\n  -F \"video_file=@video.mp4\" \\\n  -F \"title=Mi video de habilidades\"\n\n# Listar videos\ncurl -H \"Authorization: Bearer YOUR_TOKEN\" \\\n  http://localhost/api/videos\n\n# Ver ranking público\ncurl \"http://localhost/api/public/rankings?limit=10&city=Bogotá\"\n```\n\n## 🔧 Características Técnicas\n\n### Procesamiento de Videos\n1. **Upload** - Usuario sube video MP4 (máx 100MB)\n2. **Validation** - Verificación de formato y tamaño\n3. **Queue** - Tarea encolada en Celery/Redis\n4. **Processing** - Worker procesa con FFmpeg (16:9, logos)\n5. **Complete** - Estado cambia a 'processed'\n\n### Sistema de Rankings\n- **Tiempo real** - Actualización automática\n- **Paginación** - Soporte para grandes volúmenes\n- **Filtros** - Por ciudad (case-insensitive)\n- **Ordenamiento** - Por votos descendente\n\n### Seguridad\n- **JWT Tokens** - Expiran en 1 hora\n- **Bcrypt** - Hash seguro de contraseñas\n- **Autorización** - Solo propietarios acceden a sus videos\n- **Validación** - Pydantic schemas en todos los endpoints\n\n## 🚑 Solución de Problemas\n\n### Error 502 Bad Gateway\n```bash\n# Verificar servicios\ndocker-compose ps\n\n# Reiniciar servicios\ndocker-compose restart\n\n# Ver logs\ndocker-compose logs fastapi\n```\n\n### Videos no se procesan\n```bash\n# Verificar Celery worker\ndocker-compose logs celery_worker\n\n# Verificar Redis\ndocker-compose logs redis\n\n# Reiniciar worker\ndocker-compose restart celery_worker\n```\n\n### Base de datos\n```bash\n# Limpiar y recrear\ndocker-compose down -v\ndocker-compose up -d\n\n# Ver logs de PostgreSQL\ndocker-compose logs postgres\n```\n\n### Puerto ocupado\n```bash\n# Cambiar puerto en docker-compose.yml\nports:\n  - \"8080:80\"  # Usar puerto 8080 en lugar de 80\n```\n\n## 📊 Monitoreo\n\n### Endpoints de Estado\n- **GET /** - Health check general\n- **GET /docs** - Documentación interactiva\n- **GET /redoc** - Documentación alternativa\n\n### Logs Importantes\n```bash\n# Ver todos los logs\ndocker-compose logs -f\n\n# Logs específicos\ndocker-compose logs -f fastapi\ndocker-compose logs -f celery_worker\ndocker-compose logs -f postgres\ndocker-compose logs -f redis\n```",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Health Check",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response is healthcheck\", function () {",
+							"    pm.expect(pm.response.text()).to.include(\"Healthcheck\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						""
+					]
+				},
+				"description": "**Endpoint de verificación de estado**\n\nVerifica que la API esté funcionando correctamente.\n\n### Response\n- **200 OK**: API funcionando\n- **Otros**: Problema con el servicio\n\n### Ejemplo de uso\n```bash\ncurl http://localhost/\n```"
+			},
+			"response": [
+				{
+					"name": "Success Response",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/",
+							"host": ["{{base_url}}"],
+							"path": [""]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "\"Healthcheck\""
+				}
+			]
+		},
+		{
+			"name": "User Signup",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"if (pm.response.code === 201) {",
+							"    pm.test(\"Status code is 201\", function () {",
+							"        pm.response.to.have.status(201);",
+							"    });",
+							"    ",
+							"    pm.test(\"Response has user data\", function () {",
+							"        var jsonData = pm.response.json();",
+							"        pm.expect(jsonData).to.have.property('id');",
+							"        pm.expect(jsonData).to.have.property('email');",
+							"        pm.expect(jsonData).to.have.property('first_name');",
+							"        pm.expect(jsonData).to.have.property('last_name');",
+							"    });",
+							"    ",
+							"    // Store email and user_id for other tests",
+							"    var jsonData = pm.response.json();",
+							"    pm.environment.set('test_email', jsonData.email);",
+							"    pm.environment.set('test_user_id', jsonData.id);",
+							"} else {",
+							"    pm.test(\"Error response has detail\", function () {",
+							"        var jsonData = pm.response.json();",
+							"        pm.expect(jsonData).to.have.property('detail');",
+							"    });",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"first_name\": \"Test\",\n    \"last_name\": \"User\",\n    \"email\": \"test{{$timestamp}}@example.com\",\n    \"city\": \"Test City\",\n    \"country\": \"Test Country\",\n    \"password1\": \"testpass123\",\n    \"password2\": \"testpass123\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/auth/signup",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"auth",
+						"signup"
+					]
+				},
+				"description": "**Registro de nuevos usuarios**\n\nCrea una nueva cuenta de usuario en el sistema.\n\n### Campos requeridos\n- `first_name`: Nombre (1-100 caracteres)\n- `last_name`: Apellido (1-100 caracteres)\n- `email`: Email válido (único)\n- `password1`: Contraseña (mínimo 8 caracteres)\n- `password2`: Confirmación de contraseña\n\n### Campos opcionales\n- `city`: Ciudad\n- `country`: País\n\n### Respuestas\n- **201 Created**: Usuario creado exitosamente\n- **400 Bad Request**: Datos inválidos o email duplicado\n\n### Validaciones\n- Las contraseñas deben coincidir\n- El email debe ser único\n- Todos los campos requeridos deben estar presentes"
+			},
+			"response": [
+				{
+					"name": "Success - User Created",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"first_name\": \"Ana\",\n    \"last_name\": \"García\",\n    \"email\": \"ana@example.com\",\n    \"city\": \"Bogotá\",\n    \"country\": \"Colombia\",\n    \"password1\": \"mipassword123\",\n    \"password2\": \"mipassword123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/signup",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "signup"]
+						}
+					},
+					"status": "Created",
+					"code": 201,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"id\": 1,\n  \"first_name\": \"Ana\",\n  \"last_name\": \"García\",\n  \"email\": \"ana@example.com\",\n  \"city\": \"Bogotá\",\n  \"country\": \"Colombia\"\n}"
+				},
+				{
+					"name": "Error - Password Mismatch",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"first_name\": \"Test\",\n    \"last_name\": \"User\",\n    \"email\": \"test@example.com\",\n    \"password1\": \"testpass123\",\n    \"password2\": \"different123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/signup",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "signup"]
+						}
+					},
+					"status": "Bad Request",
+					"code": 400,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"detail\": \"Las contraseñas no coinciden.\"\n}"
+				},
+				{
+					"name": "Error - Duplicate Email",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"first_name\": \"Another\",\n    \"last_name\": \"User\",\n    \"email\": \"ana@example.com\",\n    \"password1\": \"testpass123\",\n    \"password2\": \"testpass123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/signup",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "signup"]
+						}
+					},
+					"status": "Bad Request",
+					"code": 400,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"detail\": \"Email ya está registrado.\"\n}"
+				}
+			]
+		},
+		{
+			"name": "User Login",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"if (pm.response.code === 200) {",
+							"    pm.test(\"Status code is 200\", function () {",
+							"        pm.response.to.have.status(200);",
+							"    });",
+							"    ",
+							"    pm.test(\"Response has token data\", function () {",
+							"        var jsonData = pm.response.json();",
+							"        pm.expect(jsonData).to.have.property('access_token');",
+							"        pm.expect(jsonData).to.have.property('token_type');",
+							"        pm.expect(jsonData.token_type).to.eql('bearer');",
+							"    });",
+							"    ",
+							"    // Store token and expiry for future requests",
+							"    var jsonData = pm.response.json();",
+							"    pm.environment.set('access_token', jsonData.access_token);",
+							"    pm.environment.set('token_expires_in', jsonData.expires_in);",
+							"} else {",
+							"    pm.test(\"Error response has detail\", function () {",
+							"        var jsonData = pm.response.json();",
+							"        pm.expect(jsonData).to.have.property('detail');",
+							"    });",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"email\": \"{{test_email}}\",\n    \"password\": \"testpass123\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/auth/login",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"auth",
+						"login"
+					]
+				},
+				"description": "**Autenticación de usuarios**\n\nPermite a los usuarios autenticarse y obtener un token JWT.\n\n### Campos requeridos\n- `email`: Email del usuario registrado\n- `password`: Contraseña del usuario\n\n### Respuestas\n- **200 OK**: Login exitoso, retorna JWT token\n- **401 Unauthorized**: Credenciales inválidas\n\n### Token JWT\nEl token retornado debe incluirse en requests autenticados:\n```\nAuthorization: Bearer <access_token>\n```\n\n### Duración del token\nPor defecto: 1 hora (3600 segundos)"
+			},
+			"response": [
+				{
+					"name": "Success - Login OK",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"ana@example.com\",\n    \"password\": \"mipassword123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"access_token\": \"eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJBbmEiLCJleHAiOjE3MzQ1NzEyMDB9.example_jwt_token_here\",\n  \"token_type\": \"bearer\"\n}"
+				},
+				{
+					"name": "Error - Invalid Credentials",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"noexiste@example.com\",\n    \"password\": \"cualquiera\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						}
+					},
+					"status": "Unauthorized",
+					"code": 401,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"detail\": \"Credenciales inválidas.\"\n}"
+				},
+				{
+					"name": "Error - Wrong Password",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"ana@example.com\",\n    \"password\": \"wrongpassword\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						}
+					},
+					"status": "Unauthorized",
+					"code": 401,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"detail\": \"Credenciales inválidas.\"\n}"
+				}
+			]
+		},
+		{
+			"name": "Upload Video",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"if (pm.response.code === 201) {",
+							"    pm.test(\"Status code is 201\", function () {",
+							"        pm.response.to.have.status(201);",
+							"    });",
+							"    ",
+							"    pm.test(\"Response has upload data\", function () {",
+							"        var jsonData = pm.response.json();",
+							"        pm.expect(jsonData).to.have.property('message');",
+							"        pm.expect(jsonData).to.have.property('task_id');",
+							"        pm.expect(jsonData.message).to.include('Video subido exitosamente');",
+							"    });",
+							"} else if (pm.response.code === 401) {",
+							"    pm.test(\"Unauthorized - Missing token\", function () {",
+							"        pm.response.to.have.status(401);",
+							"    });",
+							"} else {",
+							"    pm.test(\"Error response has detail\", function () {",
+							"        var jsonData = pm.response.json();",
+							"        pm.expect(jsonData).to.have.property('detail');",
+							"    });",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{access_token}}",
+						"description": "JWT token obtenido del login"
+					}
+				],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "video_file",
+							"type": "file",
+							"src": [],
+							"description": "Archivo de video en formato MP4, máximo 100MB"
+						},
+						{
+							"key": "title",
+							"value": "Mi video de habilidades",
+							"type": "text",
+							"description": "Título descriptivo del video"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{base_url}}/api/videos/upload",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"videos",
+						"upload"
+					]
+				},
+				"description": "**Subir video de habilidades**\n\nPermite a un jugador autenticado subir un video que será procesado automáticamente.\n\n### Autenticación requerida\n- Header: `Authorization: Bearer <access_token>`\n\n### Campos requeridos (form-data)\n- `video_file`: Archivo de video en formato MP4, máximo 100MB\n- `title`: Título descriptivo del video\n\n### Respuestas\n- **201 Created**: Video subido exitosamente, procesamiento iniciado\n- **400 Bad Request**: Archivo inválido (formato, tamaño)\n- **401 Unauthorized**: Token faltante o inválido\n- **422 Unprocessable Entity**: Campos faltantes\n\n### Proceso\n1. **Upload**: El video se guarda con estado 'uploaded'\n2. **Queue**: Se encola tarea de procesamiento en Celery\n3. **Processing**: FFmpeg procesa el video en segundo plano\n4. **Complete**: Estado cambia a 'processed'\n\n### Validaciones\n- Formato: Solo MP4\n- Tamaño: Máximo 100MB\n- Autenticación: JWT válido requerido"
+			},
+			"response": [
+				{
+					"name": "Success - Video Uploaded",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{"key": "video_file", "type": "file"},
+								{"key": "title", "value": "Mi video de habilidades", "type": "text"}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/videos/upload",
+							"host": ["{{base_url}}"],
+							"path": ["api", "videos", "upload"]
+						}
+					},
+					"status": "Created",
+					"code": 201,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"message\": \"Video subido exitosamente. Tarea creada.\",\n  \"task_id\": \"abc123-def456-ghi789\"\n}"
+				},
+				{
+					"name": "Error - Unauthorized",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{"key": "video_file", "type": "file"},
+								{"key": "title", "value": "Test Video", "type": "text"}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/videos/upload",
+							"host": ["{{base_url}}"],
+							"path": ["api", "videos", "upload"]
+						}
+					},
+					"status": "Unauthorized",
+					"code": 401,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"detail\": \"Not authenticated\"\n}"
+				},
+				{
+					"name": "Error - Invalid File Format",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{"key": "video_file", "type": "file"},
+								{"key": "title", "value": "Invalid Video", "type": "text"}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/videos/upload",
+							"host": ["{{base_url}}"],
+							"path": ["api", "videos", "upload"]
+						}
+					},
+					"status": "Bad Request",
+					"code": 400,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"detail\": \"Error en el archivo (tipo o tamaño no valido): video/avi\"\n}"
+				},
+				{
+					"name": "Error - Missing File",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{"key": "title", "value": "Test Video", "type": "text"}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/videos/upload",
+							"host": ["{{base_url}}"],
+							"path": ["api", "videos", "upload"]
+						}
+					},
+					"status": "Unprocessable Entity",
+					"code": 422,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"detail\": \"Field required\"\n}"
+				}
+			]
+		},
+		{
+			"name": "List User Videos",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"if (pm.response.code === 200) {",
+							"    pm.test(\"Status code is 200\", function () {",
+							"        pm.response.to.have.status(200);",
+							"    });",
+							"    ",
+							"    pm.test(\"Response is an array\", function () {",
+							"        var jsonData = pm.response.json();",
+							"        pm.expect(jsonData).to.be.an('array');",
+							"    });",
+							"    ",
+							"    if (pm.response.json().length > 0) {",
+							"        pm.test(\"Video items have required fields\", function () {",
+							"            var jsonData = pm.response.json();",
+							"            var firstVideo = jsonData[0];",
+							"            pm.expect(firstVideo).to.have.property('video_id');",
+							"            pm.expect(firstVideo).to.have.property('title');",
+							"            pm.expect(firstVideo).to.have.property('status');",
+							"            pm.expect(firstVideo).to.have.property('uploaded_at');",
+							"        });",
+							"        ",
+							"        // Store first video ID for other tests",
+							"        var firstVideo = pm.response.json()[0];",
+							"        pm.environment.set('test_video_id', firstVideo.video_id);",
+							"    }",
+							"} else {",
+							"    pm.test(\"Unauthorized - Missing or invalid token\", function () {",
+							"        pm.response.to.have.status(401);",
+							"    });",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{access_token}}",
+						"description": "JWT token obtenido del login"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/videos",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"videos"
+					]
+				},
+				"description": "**Listar videos del usuario**\n\nObtiene todos los videos subidos por el usuario autenticado, ordenados por fecha de subida (más reciente primero).\n\n### Autenticación requerida\n- Header: `Authorization: Bearer <access_token>`\n\n### Respuestas\n- **200 OK**: Lista de videos obtenida (puede ser array vacío)\n- **401 Unauthorized**: Token faltante o inválido\n\n### Información mostrada\n- ID del video\n- Título\n- Estado (uploaded, processed, public)\n- Fecha de subida\n- Fecha de procesamiento (si aplica)\n- URL del video procesado (si aplica)\n\n### Notas\n- Solo muestra videos del usuario autenticado\n- Ordenados por fecha descendente\n- Incluye videos en todos los estados"
+			},
+			"response": [
+				{
+					"name": "Success - Videos List",
+					"originalRequest": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/videos",
+							"host": ["{{base_url}}"],
+							"path": ["api", "videos"]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "[\n  {\n    \"video_id\": 1,\n    \"title\": \"Mi video de habilidades\",\n    \"status\": \"processed\",\n    \"uploaded_at\": \"2024-01-15T10:30:00Z\",\n    \"processed_at\": \"2024-01-15T10:35:00Z\",\n    \"processed_url\": \"processed/processed_video_123.mp4\"\n  },\n  {\n    \"video_id\": 2,\n    \"title\": \"Otro video\",\n    \"status\": \"uploaded\",\n    \"uploaded_at\": \"2024-01-14T15:20:00Z\",\n    \"processed_at\": null,\n    \"processed_url\": null\n  }\n]"
+				},
+				{
+					"name": "Success - Empty List",
+					"originalRequest": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/videos",
+							"host": ["{{base_url}}"],
+							"path": ["api", "videos"]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "[]"
+				},
+				{
+					"name": "Error - Unauthorized",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/videos",
+							"host": ["{{base_url}}"],
+							"path": ["api", "videos"]
+						}
+					},
+					"status": "Unauthorized",
+					"code": 401,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"detail\": \"Not authenticated\"\n}"
+				}
+			]
+		},
+		{
+			"name": "Get Video Details",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"if (pm.response.code === 200) {",
+							"    pm.test(\"Status code is 200\", function () {",
+							"        pm.response.to.have.status(200);",
+							"    });",
+							"    ",
+							"    pm.test(\"Response has video details\", function () {",
+							"        var jsonData = pm.response.json();",
+							"        pm.expect(jsonData).to.have.property('video_id');",
+							"        pm.expect(jsonData).to.have.property('title');",
+							"        pm.expect(jsonData).to.have.property('status');",
+							"        pm.expect(jsonData).to.have.property('votes');",
+							"        pm.expect(jsonData).to.have.property('uploaded_at');",
+							"    });",
+							"    ",
+							"    pm.test(\"Votes is a number\", function () {",
+							"        var jsonData = pm.response.json();",
+							"        pm.expect(jsonData.votes).to.be.a('number');",
+							"    });",
+							"} else if (pm.response.code === 404) {",
+							"    pm.test(\"Video not found\", function () {",
+							"        pm.response.to.have.status(404);",
+							"        var jsonData = pm.response.json();",
+							"        pm.expect(jsonData.detail).to.include('not found');",
+							"    });",
+							"} else if (pm.response.code === 403) {",
+							"    pm.test(\"Forbidden - Not video owner\", function () {",
+							"        pm.response.to.have.status(403);",
+							"        var jsonData = pm.response.json();",
+							"        pm.expect(jsonData.detail).to.include('not authorized');",
+							"    });",
+							"} else if (pm.response.code === 401) {",
+							"    pm.test(\"Unauthorized - Missing token\", function () {",
+							"        pm.response.to.have.status(401);",
+							"    });",
+							"} else if (pm.response.code === 422) {",
+							"    pm.test(\"Unauthorized - Missing token\", function () {",
+							"        pm.response.to.have.status(422);",
+							"    });",
+							"} else {",
+							"    pm.test(\"Unexpected response code\", function () {",
+							"        pm.expect.fail(\"Unexpected status code: \" + pm.response.code);",
+							"    });",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{access_token}}",
+						"description": "JWT token obtenido del login"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/videos/{{test_video_id}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"videos",
+						"{{test_video_id}}"
+					]
+				},
+				"description": "**Obtener detalles de un video**\n\nObtiene información detallada de un video específico, incluyendo el número de votos recibidos.\n\n### Autenticación requerida\n- Header: `Authorization: Bearer <access_token>`\n\n### Parámetros\n- `video_id`: ID del video (en la URL)\n\n### Respuestas\n- **200 OK**: Detalles del video obtenidos\n- **401 Unauthorized**: Token faltante o inválido\n- **403 Forbidden**: El video no pertenece al usuario autenticado\n- **404 Not Found**: Video no existe\n\n### Información incluida\n- ID del video\n- Título\n- Estado (uploaded, processed, public)\n- Fechas de subida y procesamiento\n- URLs de archivos\n- **Número de votos recibidos**\n\n### Autorización\n- Solo el propietario del video puede ver sus detalles\n- Otros usuarios recibirán error 403"
+			},
+			"response": [
+				{
+					"name": "Success - Video Details",
+					"originalRequest": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/videos/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "videos", "1"]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"video_id\": 1,\n  \"title\": \"Mi video de habilidades\",\n  \"status\": \"processed\",\n  \"uploaded_at\": \"2024-01-15T10:30:00Z\",\n  \"processed_at\": \"2024-01-15T10:35:00Z\",\n  \"original_url\": \"uploads/user_1_1705312200.mp4\",\n  \"processed_url\": \"processed/processed_user_1_1705312200.mp4\",\n  \"votes\": 15\n}"
+				},
+				{
+					"name": "Error - Video Not Found",
+					"originalRequest": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/videos/999",
+							"host": ["{{base_url}}"],
+							"path": ["api", "videos", "999"]
+						}
+					},
+					"status": "Not Found",
+					"code": 404,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"detail\": \"Video not found\"\n}"
+				},
+				{
+					"name": "Error - Forbidden Access",
+					"originalRequest": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/videos/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "videos", "1"]
+						}
+					},
+					"status": "Forbidden",
+					"code": 403,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"detail\": \"You are not authorized\"\n}"
+				}
+			]
+		},
+		{
+			"name": "Delete Video",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"if (pm.response.code === 200) {",
+							"    pm.test(\"Status code is 200\", function () {",
+							"        pm.response.to.have.status(200);",
+							"    });",
+							"    ",
+							"    pm.test(\"Response has success message\", function () {",
+							"        var jsonData = pm.response.json();",
+							"        pm.expect(jsonData).to.have.property('message');",
+							"        pm.expect(jsonData).to.have.property('video_id');",
+							"        pm.expect(jsonData.message).to.include('eliminado exitosamente');",
+							"    });",
+							"} else if (pm.response.code === 400) {",
+							"    pm.test(\"Bad Request - Video is public\", function () {",
+							"        pm.response.to.have.status(400);",
+							"        var jsonData = pm.response.json();",
+							"        pm.expect(jsonData.detail).to.include('public');",
+							"    });",
+							"} else if (pm.response.code === 404) {",
+							"    pm.test(\"Video not found\", function () {",
+							"        pm.response.to.have.status(404);",
+							"        var jsonData = pm.response.json();",
+							"        pm.expect(jsonData.detail).to.include('not found');",
+							"    });",
+							"} else if (pm.response.code === 403) {",
+							"    pm.test(\"Forbidden - Not video owner\", function () {",
+							"        pm.response.to.have.status(403);",
+							"        var jsonData = pm.response.json();",
+							"        pm.expect(jsonData.detail).to.include('not authorized');",
+							"    });",
+							"} else if (pm.response.code === 401) {",
+							"    pm.test(\"Unauthorized - Missing token\", function () {",
+							"        pm.response.to.have.status(401);",
+							"    });",
+							"} else if (pm.response.code === 422) {",
+							"    pm.test(\"Unauthorized - Missing token\", function () {",
+							"        pm.response.to.have.status(422);",
+							"    });",
+							"} else {",
+							"    pm.test(\"Unexpected response code\", function () {",
+							"        pm.expect.fail(\"Unexpected status code: \" + pm.response.code);",
+							"    });",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "DELETE",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{access_token}}",
+						"description": "JWT token obtenido del login"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/videos/{{test_video_id}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"videos",
+						"{{test_video_id}}"
+					]
+				},
+				"description": "**Eliminar un video**\n\nElimina permanentemente un video del usuario autenticado.\n\n### Autenticación requerida\n- Header: `Authorization: Bearer <access_token>`\n\n### Parámetros\n- `video_id`: ID del video a eliminar (en la URL)\n\n### Respuestas\n- **200 OK**: Video eliminado exitosamente\n- **400 Bad Request**: No se puede eliminar (video es público)\n- **401 Unauthorized**: Token faltante o inválido\n- **403 Forbidden**: El video no pertenece al usuario autenticado\n- **404 Not Found**: Video no existe\n\n### Restricciones\n- ❌ **Videos públicos**: No se pueden eliminar\n- ✅ **Videos uploaded/processed**: Se pueden eliminar\n- 🔒 **Solo el propietario**: Puede eliminar sus videos\n\n### Notas importantes\n- **Eliminación permanente**: No se puede deshacer\n- **Archivos**: Se eliminan de la base de datos (archivos físicos permanecen)\n- **Votos**: Se eliminan automáticamente por cascada"
+			},
+			"response": [
+				{
+					"name": "Success - Video Deleted",
+					"originalRequest": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/videos/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "videos", "1"]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"message\": \"El video ha sido eliminado exitosamente.\",\n  \"video_id\": 1\n}"
+				},
+				{
+					"name": "Error - Video Not Found",
+					"originalRequest": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/videos/999",
+							"host": ["{{base_url}}"],
+							"path": ["api", "videos", "999"]
+						}
+					},
+					"status": "Not Found",
+					"code": 404,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"detail\": \"Video not found\"\n}"
+				},
+				{
+					"name": "Error - Video is Public",
+					"originalRequest": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/videos/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "videos", "1"]
+						}
+					},
+					"status": "Bad Request",
+					"code": 400,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"detail\": \"Video is public\"\n}"
+				},
+				{
+					"name": "Error - Forbidden Access",
+					"originalRequest": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/videos/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "videos", "1"]
+						}
+					},
+					"status": "Forbidden",
+					"code": 403,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"detail\": \"You are not authorized\"\n}"
+				}
+			]
+		},
+		{
+			"name": "Public Rankings",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response is an array\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.be.an('array');",
+							"});",
+							"",
+							"if (pm.response.json().length > 0) {",
+							"    pm.test(\"Ranking items have required fields\", function () {",
+							"        var jsonData = pm.response.json();",
+							"        var firstItem = jsonData[0];",
+							"        pm.expect(firstItem).to.have.property('position');",
+							"        pm.expect(firstItem).to.have.property('username');",
+							"        pm.expect(firstItem).to.have.property('city');",
+							"        pm.expect(firstItem).to.have.property('votes');",
+							"        pm.expect(firstItem.position).to.be.a('number');",
+							"        pm.expect(firstItem.username).to.be.a('string');",
+							"        pm.expect(firstItem.city).to.be.a('string');",
+							"        pm.expect(firstItem.votes).to.be.a('number');",
+							"    });",
+							"    ",
+							"    pm.test(\"Rankings are ordered by votes (descending)\", function () {",
+							"        var jsonData = pm.response.json();",
+							"        for (let i = 0; i < jsonData.length - 1; i++) {",
+							"            pm.expect(jsonData[i].votes).to.be.at.least(jsonData[i + 1].votes);",
+							"        }",
+							"    });",
+							"    ",
+							"    pm.test(\"Positions are sequential\", function () {",
+							"        var jsonData = pm.response.json();",
+							"        for (let i = 0; i < jsonData.length; i++) {",
+							"            pm.expect(jsonData[i].position).to.eql(i + 1);",
+							"        }",
+							"    });",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/public/rankings?page=1&limit=10",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"public",
+						"rankings"
+					],
+					"query": [
+						{
+							"key": "page",
+							"value": "1",
+							"description": "Número de página (por defecto 1)"
+						},
+						{
+							"key": "limit",
+							"value": "10",
+							"description": "Elementos por página (1-100, por defecto 10)"
+						},
+						{
+							"key": "city",
+							"value": "",
+							"description": "Filtrar por ciudad (opcional)",
+							"disabled": true
+						}
+					]
+				},
+				"description": "**Ranking público de jugadores por votos**\n\nMuestra el ranking actual de los jugadores ordenados por número de votos acumulados.\n\n### Parámetros de consulta\n- `page`: Número de página (por defecto 1, mínimo 1)\n- `limit`: Elementos por página (1-100, por defecto 10)\n- `city`: Filtrar por ciudad (opcional, búsqueda insensible a mayúsculas)\n\n### Respuestas\n- **200 OK**: Lista de rankings obtenida\n- **400 Bad Request**: Parámetro inválido en la consulta\n- **422 Unprocessable Entity**: Validación de parámetros fallida\n\n### Características\n- ✅ **Público**: No requiere autenticación\n- 📈 **Ordenado**: Por votos descendente\n- 📋 **Paginado**: Soporte para grandes volúmenes\n- 🏢 **Filtrable**: Por ciudad\n- ⚡ **Optimizado**: Para consultas rápidas\n\n### Ejemplos de uso\n```bash\n# Ranking completo (primera página)\ncurl \"{{base_url}}/api/public/rankings\"\n\n# Segunda página con 5 elementos\ncurl \"{{base_url}}/api/public/rankings?page=2&limit=5\"\n\n# Filtrar por ciudad\ncurl \"{{base_url}}/api/public/rankings?city=Bogotá\"\n```\n\n### Estructura de respuesta\n```json\n[\n  {\n    \"position\": 1,\n    \"username\": \"Juan Pérez\",\n    \"city\": \"Bogotá\",\n    \"votes\": 1530\n  },\n  {\n    \"position\": 2,\n    \"username\": \"Ana García\",\n    \"city\": \"Medellín\",\n    \"votes\": 1495\n  }\n]\n```"
+			},
+			"response": [
+				{
+					"name": "Success - Rankings with Data",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/public/rankings?page=1&limit=10",
+							"host": ["{{base_url}}"],
+							"path": ["api", "public", "rankings"],
+							"query": [
+								{"key": "page", "value": "1"},
+								{"key": "limit", "value": "10"}
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "[\n  {\n    \"position\": 1,\n    \"username\": \"Juan Pérez\",\n    \"city\": \"Bogotá\",\n    \"votes\": 1530\n  },\n  {\n    \"position\": 2,\n    \"username\": \"Ana García\",\n    \"city\": \"Medellín\",\n    \"votes\": 1495\n  },\n  {\n    \"position\": 3,\n    \"username\": \"Carlos López\",\n    \"city\": \"Cali\",\n    \"votes\": 1200\n  }\n]"
+				},
+				{
+					"name": "Success - Empty Rankings",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/public/rankings",
+							"host": ["{{base_url}}"],
+							"path": ["api", "public", "rankings"]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "[]"
+				},
+				{
+					"name": "Success - City Filter",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/public/rankings?city=Bogotá",
+							"host": ["{{base_url}}"],
+							"path": ["api", "public", "rankings"],
+							"query": [
+								{"key": "city", "value": "Bogotá"}
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "[\n  {\n    \"position\": 1,\n    \"username\": \"Juan Pérez\",\n    \"city\": \"Bogotá\",\n    \"votes\": 1530\n  }\n]"
+				},
+				{
+					"name": "Error - Invalid Parameters",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/public/rankings?page=0&limit=101",
+							"host": ["{{base_url}}"],
+							"path": ["api", "public", "rankings"],
+							"query": [
+								{"key": "page", "value": "0"},
+								{"key": "limit", "value": "101"}
+							]
+						}
+					},
+					"status": "Unprocessable Entity",
+					"code": 422,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"detail\": [\n    {\n      \"loc\": [\"query\", \"page\"],\n      \"msg\": \"ensure this value is greater than or equal to 1\",\n      \"type\": \"value_error.number.not_ge\",\n      \"ctx\": {\"limit_value\": 1}\n    }\n  ]\n}"
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "{{base_url}}"
+		}
+	]
+}
