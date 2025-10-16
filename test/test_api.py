@@ -176,9 +176,7 @@ def auth_header(client, email, password="mipassword123"):
 
 def test_get_video_not_found(client):
     db = TestingSessionLocal()
-    user_a = 
-    
-    (db)
+    user_a =create_test_user(db)
     headers = auth_header(client, user_a.email)
 
     response = client.get("/api/videos/999", headers=headers)
