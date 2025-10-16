@@ -379,6 +379,195 @@
 					"body": "{\n  \"detail\": \"Credenciales inválidas.\"\n}"
 				}
 			]
+		},
+		{
+			"name": "Public Rankings",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response is an array\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.be.an('array');",
+							"});",
+							"",
+							"if (pm.response.json().length > 0) {",
+							"    pm.test(\"Ranking items have required fields\", function () {",
+							"        var jsonData = pm.response.json();",
+							"        var firstItem = jsonData[0];",
+							"        pm.expect(firstItem).to.have.property('position');",
+							"        pm.expect(firstItem).to.have.property('username');",
+							"        pm.expect(firstItem).to.have.property('city');",
+							"        pm.expect(firstItem).to.have.property('votes');",
+							"        pm.expect(firstItem.position).to.be.a('number');",
+							"        pm.expect(firstItem.username).to.be.a('string');",
+							"        pm.expect(firstItem.city).to.be.a('string');",
+							"        pm.expect(firstItem.votes).to.be.a('number');",
+							"    });",
+							"    ",
+							"    pm.test(\"Rankings are ordered by votes (descending)\", function () {",
+							"        var jsonData = pm.response.json();",
+							"        for (let i = 0; i < jsonData.length - 1; i++) {",
+							"            pm.expect(jsonData[i].votes).to.be.at.least(jsonData[i + 1].votes);",
+							"        }",
+							"    });",
+							"    ",
+							"    pm.test(\"Positions are sequential\", function () {",
+							"        var jsonData = pm.response.json();",
+							"        for (let i = 0; i < jsonData.length; i++) {",
+							"            pm.expect(jsonData[i].position).to.eql(i + 1);",
+							"        }",
+							"    });",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/public/rankings?page=1&limit=10",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"public",
+						"rankings"
+					],
+					"query": [
+						{
+							"key": "page",
+							"value": "1",
+							"description": "Número de página (por defecto 1)"
+						},
+						{
+							"key": "limit",
+							"value": "10",
+							"description": "Elementos por página (1-100, por defecto 10)"
+						},
+						{
+							"key": "city",
+							"value": "",
+							"description": "Filtrar por ciudad (opcional)",
+							"disabled": true
+						}
+					]
+				},
+				"description": "**Ranking público de jugadores por votos**\n\nMuestra el ranking actual de los jugadores ordenados por número de votos acumulados.\n\n### Parámetros de consulta\n- `page`: Número de página (por defecto 1, mínimo 1)\n- `limit`: Elementos por página (1-100, por defecto 10)\n- `city`: Filtrar por ciudad (opcional, búsqueda insensible a mayúsculas)\n\n### Respuestas\n- **200 OK**: Lista de rankings obtenida\n- **400 Bad Request**: Parámetro inválido en la consulta\n- **422 Unprocessable Entity**: Validación de parámetros fallida\n\n### Características\n- ✅ **Público**: No requiere autenticación\n- 📈 **Ordenado**: Por votos descendente\n- 📋 **Paginado**: Soporte para grandes volúmenes\n- 🏢 **Filtrable**: Por ciudad\n- ⚡ **Optimizado**: Para consultas rápidas\n\n### Ejemplos de uso\n```bash\n# Ranking completo (primera página)\ncurl \"{{base_url}}/api/public/rankings\"\n\n# Segunda página con 5 elementos\ncurl \"{{base_url}}/api/public/rankings?page=2&limit=5\"\n\n# Filtrar por ciudad\ncurl \"{{base_url}}/api/public/rankings?city=Bogotá\"\n```\n\n### Estructura de respuesta\n```json\n[\n  {\n    \"position\": 1,\n    \"username\": \"Juan Pérez\",\n    \"city\": \"Bogotá\",\n    \"votes\": 1530\n  },\n  {\n    \"position\": 2,\n    \"username\": \"Ana García\",\n    \"city\": \"Medellín\",\n    \"votes\": 1495\n  }\n]\n```"
+			},
+			"response": [
+				{
+					"name": "Success - Rankings with Data",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/public/rankings?page=1&limit=10",
+							"host": ["{{base_url}}"],
+							"path": ["api", "public", "rankings"],
+							"query": [
+								{"key": "page", "value": "1"},
+								{"key": "limit", "value": "10"}
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "[\n  {\n    \"position\": 1,\n    \"username\": \"Juan Pérez\",\n    \"city\": \"Bogotá\",\n    \"votes\": 1530\n  },\n  {\n    \"position\": 2,\n    \"username\": \"Ana García\",\n    \"city\": \"Medellín\",\n    \"votes\": 1495\n  },\n  {\n    \"position\": 3,\n    \"username\": \"Carlos López\",\n    \"city\": \"Cali\",\n    \"votes\": 1200\n  }\n]"
+				},
+				{
+					"name": "Success - Empty Rankings",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/public/rankings",
+							"host": ["{{base_url}}"],
+							"path": ["api", "public", "rankings"]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "[]"
+				},
+				{
+					"name": "Success - City Filter",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/public/rankings?city=Bogotá",
+							"host": ["{{base_url}}"],
+							"path": ["api", "public", "rankings"],
+							"query": [
+								{"key": "city", "value": "Bogotá"}
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "[\n  {\n    \"position\": 1,\n    \"username\": \"Juan Pérez\",\n    \"city\": \"Bogotá\",\n    \"votes\": 1530\n  }\n]"
+				},
+				{
+					"name": "Error - Invalid Parameters",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/public/rankings?page=0&limit=101",
+							"host": ["{{base_url}}"],
+							"path": ["api", "public", "rankings"],
+							"query": [
+								{"key": "page", "value": "0"},
+								{"key": "limit", "value": "101"}
+							]
+						}
+					},
+					"status": "Unprocessable Entity",
+					"code": 422,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"detail\": [\n    {\n      \"loc\": [\"query\", \"page\"],\n      \"msg\": \"ensure this value is greater than or equal to 1\",\n      \"type\": \"value_error.number.not_ge\",\n      \"ctx\": {\"limit_value\": 1}\n    }\n  ]\n}"
+				}
+			]
 		}
 	],
 	"variable": [

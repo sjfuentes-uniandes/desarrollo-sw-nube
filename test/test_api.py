@@ -897,6 +897,299 @@ class TestDatabaseTask:
 
 
 # ============================================================================
+# PRUEBAS PARA GET /api/public/rankings
+# ============================================================================
+
+class TestPublicRankings:
+    """Pruebas para el endpoint público de rankings"""
+    
+    def test_rankings_empty_database(self, client):
+        """Test: Rankings con base de datos vacía"""
+        response = client.get("/api/public/rankings")
+        
+        assert response.status_code == 200
+        assert response.json() == []
+    
+    def test_rankings_with_users_no_votes(self, client):
+        """Test: Rankings con usuarios pero sin votos"""
+        # Crear usuarios
+        client.post("/api/auth/signup", json={
+            "first_name": "Juan",
+            "last_name": "Pérez",
+            "email": "juan@example.com",
+            "city": "Bogotá",
+            "country": "Colombia",
+            "password1": "testpass123",
+            "password2": "testpass123"
+        })
+        
+        client.post("/api/auth/signup", json={
+            "first_name": "Ana",
+            "last_name": "García",
+            "email": "ana@example.com",
+            "city": "Medellín",
+            "country": "Colombia",
+            "password1": "testpass123",
+            "password2": "testpass123"
+        })
+        
+        response = client.get("/api/public/rankings")
+        
+        assert response.status_code == 200
+        rankings = response.json()
+        assert len(rankings) == 2
+        
+        # Verificar estructura
+        for ranking in rankings:
+            assert "position" in ranking
+            assert "username" in ranking
+            assert "city" in ranking
+            assert "votes" in ranking
+            assert ranking["votes"] == 0
+    
+    def test_rankings_with_votes(self, client):
+        """Test: Rankings con usuarios y votos"""
+        db = TestingSessionLocal()
+        
+        # Crear usuarios
+        user1 = create_test_user(db, "user1@example.com")
+        user2 = create_test_user(db, "user2@example.com")
+        
+        # Crear videos
+        video1 = create_test_video(db, user1)
+        video2 = create_test_video(db, user2)
+        
+        # Crear votos (user1 tiene más votos)
+        vote1 = Vote(user_id=user1.id, video_id=video1.id)
+        vote2 = Vote(user_id=user2.id, video_id=video1.id)
+        vote3 = Vote(user_id=user1.id, video_id=video2.id)
+        
+        db.add_all([vote1, vote2, vote3])
+        db.commit()
+        db.close()
+        
+        response = client.get("/api/public/rankings")
+        
+        assert response.status_code == 200
+        rankings = response.json()
+        assert len(rankings) == 2
+        
+        # Verificar orden (más votos primero)
+        assert rankings[0]["votes"] >= rankings[1]["votes"]
+        assert rankings[0]["position"] == 1
+        assert rankings[1]["position"] == 2
+    
+    def test_rankings_pagination(self, client):
+        """Test: Paginación de rankings"""
+        # Crear múltiples usuarios
+        for i in range(5):
+            client.post("/api/auth/signup", json={
+                "first_name": f"User{i}",
+                "last_name": "Test",
+                "email": f"user{i}@example.com",
+                "city": "Bogotá",
+                "country": "Colombia",
+                "password1": "testpass123",
+                "password2": "testpass123"
+            })
+        
+        # Primera página (limit=2)
+        response1 = client.get("/api/public/rankings?page=1&limit=2")
+        assert response1.status_code == 200
+        rankings1 = response1.json()
+        assert len(rankings1) == 2
+        assert rankings1[0]["position"] == 1
+        assert rankings1[1]["position"] == 2
+        
+        # Segunda página
+        response2 = client.get("/api/public/rankings?page=2&limit=2")
+        assert response2.status_code == 200
+        rankings2 = response2.json()
+        assert len(rankings2) == 2
+        assert rankings2[0]["position"] == 3
+        assert rankings2[1]["position"] == 4
+    
+    def test_rankings_city_filter(self, client):
+        """Test: Filtro por ciudad"""
+        # Crear usuarios en diferentes ciudades
+        client.post("/api/auth/signup", json={
+            "first_name": "Juan",
+            "last_name": "Bogotano",
+            "email": "juan@example.com",
+            "city": "Bogotá",
+            "country": "Colombia",
+            "password1": "testpass123",
+            "password2": "testpass123"
+        })
+        
+        client.post("/api/auth/signup", json={
+            "first_name": "Ana",
+            "last_name": "Paisa",
+            "email": "ana@example.com",
+            "city": "Medellín",
+            "country": "Colombia",
+            "password1": "testpass123",
+            "password2": "testpass123"
+        })
+        
+        # Filtrar por Bogotá
+        response = client.get("/api/public/rankings?city=Bogotá")
+        assert response.status_code == 200
+        rankings = response.json()
+        assert len(rankings) == 1
+        assert "Bogotá" in rankings[0]["city"]
+        assert "Juan Bogotano" == rankings[0]["username"]
+    
+    def test_rankings_city_filter_case_insensitive(self, client):
+        """Test: Filtro por ciudad insensible a mayúsculas"""
+        client.post("/api/auth/signup", json={
+            "first_name": "Test",
+            "last_name": "User",
+            "email": "test@example.com",
+            "city": "Bogotá",
+            "country": "Colombia",
+            "password1": "testpass123",
+            "password2": "testpass123"
+        })
+        
+        # Buscar con minúsculas
+        response = client.get("/api/public/rankings?city=bogotá")
+        assert response.status_code == 200
+        rankings = response.json()
+        assert len(rankings) == 1
+    
+    def test_rankings_invalid_page_parameter(self, client):
+        """Test: Parámetro de página inválido"""
+        response = client.get("/api/public/rankings?page=0")
+        assert response.status_code == 422  # Validation error
+    
+    def test_rankings_invalid_limit_parameter(self, client):
+        """Test: Parámetro de límite inválido"""
+        response = client.get("/api/public/rankings?limit=101")
+        assert response.status_code == 422  # Validation error
+    
+    def test_rankings_username_format(self, client):
+        """Test: Formato del nombre de usuario (first_name + last_name)"""
+        client.post("/api/auth/signup", json={
+            "first_name": "María José",
+            "last_name": "González López",
+            "email": "maria@example.com",
+            "city": "Cali",
+            "country": "Colombia",
+            "password1": "testpass123",
+            "password2": "testpass123"
+        })
+        
+        response = client.get("/api/public/rankings")
+        assert response.status_code == 200
+        rankings = response.json()
+        assert len(rankings) == 1
+        assert rankings[0]["username"] == "María José González López"
+    
+    def test_rankings_user_without_city(self, client):
+        """Test: Usuario sin ciudad especificada"""
+        client.post("/api/auth/signup", json={
+            "first_name": "Sin",
+            "last_name": "Ciudad",
+            "email": "sinciudad@example.com",
+            "password1": "testpass123",
+            "password2": "testpass123"
+        })
+        
+        response = client.get("/api/public/rankings")
+        assert response.status_code == 200
+        rankings = response.json()
+        assert len(rankings) == 1
+        assert rankings[0]["city"] == ""  # Ciudad vacía
+    
+    def test_rankings_default_pagination_values(self, client):
+        """Test: Valores por defecto de paginación"""
+        # Crear 15 usuarios
+        for i in range(15):
+            client.post("/api/auth/signup", json={
+                "first_name": f"User{i}",
+                "last_name": "Test",
+                "email": f"user{i}@example.com",
+                "password1": "testpass123",
+                "password2": "testpass123"
+            })
+        
+        # Sin parámetros (debe usar page=1, limit=10)
+        response = client.get("/api/public/rankings")
+        assert response.status_code == 200
+        rankings = response.json()
+        assert len(rankings) == 10  # Límite por defecto
+    
+    def test_rankings_complex_scenario(self, client):
+        """Test: Escenario complejo con múltiples usuarios, videos y votos"""
+        db = TestingSessionLocal()
+        
+        # Crear usuarios
+        user1 = create_test_user(db, "superstar@example.com")
+        user1.first_name = "Super"
+        user1.last_name = "Star"
+        user1.city = "Bogotá"
+        
+        user2 = create_test_user(db, "rising@example.com")
+        user2.first_name = "Rising"
+        user2.last_name = "Talent"
+        user2.city = "Medellín"
+        
+        user3 = create_test_user(db, "newbie@example.com")
+        user3.first_name = "New"
+        user3.last_name = "Player"
+        user3.city = "Bogotá"
+        
+        db.commit()
+        
+        # Crear videos
+        video1 = create_test_video(db, user1)
+        video2 = create_test_video(db, user2)
+        video3 = create_test_video(db, user3)
+        
+        # Crear votos (user1: 3 votos, user2: 2 votos, user3: 1 voto)
+        votes = [
+            Vote(user_id=user1.id, video_id=video1.id),
+            Vote(user_id=user2.id, video_id=video1.id),
+            Vote(user_id=user3.id, video_id=video1.id),  # 3 votos para user1
+            Vote(user_id=user1.id, video_id=video2.id),
+            Vote(user_id=user3.id, video_id=video2.id),  # 2 votos para user2
+            Vote(user_id=user2.id, video_id=video3.id),  # 1 voto para user3
+        ]
+        
+        db.add_all(votes)
+        db.commit()
+        db.close()
+        
+        # Obtener rankings
+        response = client.get("/api/public/rankings")
+        assert response.status_code == 200
+        rankings = response.json()
+        
+        # Verificar orden correcto
+        assert len(rankings) == 3
+        assert rankings[0]["username"] == "Super Star"
+        assert rankings[0]["votes"] == 3
+        assert rankings[0]["position"] == 1
+        
+        assert rankings[1]["username"] == "Rising Talent"
+        assert rankings[1]["votes"] == 2
+        assert rankings[1]["position"] == 2
+        
+        assert rankings[2]["username"] == "New Player"
+        assert rankings[2]["votes"] == 1
+        assert rankings[2]["position"] == 3
+        
+        # Filtrar por Bogotá
+        response_bogota = client.get("/api/public/rankings?city=Bogotá")
+        assert response_bogota.status_code == 200
+        bogota_rankings = response_bogota.json()
+        assert len(bogota_rankings) == 2
+        assert bogota_rankings[0]["username"] == "Super Star"
+        assert bogota_rankings[1]["username"] == "New Player"
+
+
+# ============================================================================
 # PRUEBAS PARA video_tasks.py - process_video_task
 # ============================================================================
 
