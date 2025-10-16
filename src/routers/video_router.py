@@ -2,6 +2,8 @@ from fastapi import APIRouter, status, HTTPException, UploadFile, File, Form
 from fastapi.params import Depends
 import os
 import shutil
+import aiofiles
+import aiofiles.os
 from pathlib import Path
 from datetime import datetime
 
@@ -83,8 +85,8 @@ async def upload_video(
         file_path = UPLOAD_DIR / unique_filename
         
         # PASO 2: Guardar el archivo en el sistema de archivos
-        with open(file_path, "wb") as buffer:
-            buffer.write(file_content)
+        async with aiofiles.open(file_path, "wb") as buffer:
+            await buffer.write(file_content)
         
         # PASO 3: Crear registro en la base de datos con estado 'uploaded'
         new_video = Video(
@@ -121,7 +123,7 @@ async def upload_video(
     except Exception as e:
         # Limpiar el archivo si algo sale mal
         if 'file_path' in locals() and file_path.exists():
-            file_path.unlink()
+            await aiofiles.os.remove(file_path)
         
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
