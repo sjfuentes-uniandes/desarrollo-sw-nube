@@ -13,6 +13,7 @@ from src.db.database import get_db
 from src.models.db_models import User
 from src.tasks.video_tasks import process_video_task
 from typing import List
+from celery.result import AsyncResult
 
 
 
@@ -46,7 +47,7 @@ async def upload_video(
     **Respuesta:**
     ```json
     {
-        "message": "Video subido correctamente. Procesamiento en curso.",
+        "message": "Video subido exitosamente. Tarea creada.",
         "task_id": "123456"
     }
     ```
@@ -56,7 +57,7 @@ async def upload_video(
         if video_file.content_type not in ALLOWED_CONTENT_TYPES:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Tipo de archivo no permitido. Solo se acepta MP4. Recibido: {video_file.content_type}"
+                detail=f"Error en el archivo (tipo o tamaño no valido): {video_file.content_type}"
             )
         
         # VALIDACIÓN 2: Verificar tamaño del archivo
@@ -111,7 +112,7 @@ async def upload_video(
         
         # PASO 6: Responder inmediatamente al cliente (sin esperar al procesamiento)
         return VideoUploadResponse(
-            message="Video subido correctamente. Procesamiento en curso.",
+            message="Video subido exitosamente. Tarea creada.",
             task_id=task.id
         )
         
@@ -180,6 +181,63 @@ async def get_video(video_id: int,db: Session = Depends(get_db), current_user: U
         print(e)
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
+
+@video_router.get("/api/videos/task/{task_id}", status_code=status.HTTP_200_OK)
+async def get_task_status(
+    task_id: str,
+    current_user: User = Depends(verify_token)
+):
+    """
+    Consulta el estado de una tarea de procesamiento de video en Celery.
+    
+    Permite verificar el progreso del procesamiento asíncrono usando el task_id
+    que se recibe al subir un video.
+    
+    **Estados posibles:**
+    - `PENDING`: Tarea en cola, esperando ser procesada
+    - `STARTED`: Tarea en ejecución
+    - `SUCCESS`: Tarea completada exitosamente
+    - `FAILURE`: Tarea falló
+    - `RETRY`: Tarea reintentándose
+    
+    **Respuesta:**
+    ```json
+    {
+        "task_id": "abc-123",
+        "state": "SUCCESS",
+        "result": {
+            "success": true,
+            "video_id": 1,
+            "processed_url": "processed/video.mp4"
+        }
+    }
+    ```
+    """
+    try:
+        # Obtener el resultado de la tarea desde Celery
+        task_result = AsyncResult(task_id)
+        
+        response = {
+            "task_id": task_id,
+            "state": task_result.state,
+            "info": task_result.info if task_result.info else None
+        }
+        
+        # Si la tarea fue exitosa, incluir el resultado
+        if task_result.state == 'SUCCESS':
+            response["result"] = task_result.result
+        
+        # Si la tarea falló, incluir el error
+        elif task_result.state == 'FAILURE':
+            response["error"] = str(task_result.info)
+        
+        return response
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al consultar el estado de la tarea: {str(e)}"
+        )
 
 
 
