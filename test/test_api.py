@@ -1545,3 +1545,92 @@ class TestPublicVideos:
 
         # Verificar que el video que está en procesamiento no esté en la lista
         assert video3.id not in response_videos_ids
+
+    def test_list_no_public_videos(self, client):
+        """Test: Listar videos cuando ningun video es publico"""
+
+        db = TestingSessionLocal()
+
+        # Crear usuarios
+        user1 = create_test_user(db, "superstar@example.com")
+        user1.first_name = "Super"
+        user1.last_name = "Star"
+        user1.city = "Bogotá"
+        
+        user2 = create_test_user(db, "rising@example.com")
+        user2.first_name = "Rising"
+        user2.last_name = "Talent"
+        user2.city = "Medellín"
+        
+        user3 = create_test_user(db, "newbie@example.com")
+        user3.first_name = "New"
+        user3.last_name = "Player"
+        user3.city = "Bogotá"
+        
+        db.commit()
+        
+        # Crear videos
+        video1 = create_test_video(db, user1) # Video en procesamiento
+        video2 = create_test_video(db, user2) # Video en procesamiento
+        video3 = create_test_video(db, user3) # Video en procesamiento
+
+        # Se consulta el endpoint
+        response = client.get("/api/public/videos")
+
+        # Verificar que la respuesta sea exitosa
+        assert response.status_code == 200
+
+        # Verificar que la respuesta sea una lista vacía
+        public_videos = response.json()
+        assert public_videos == []
+
+    def test_owners_data(self, client):
+        """Test: Confirmar los datos de los propietarios de los videos"""
+        db = TestingSessionLocal()
+
+        # Crear usuarios
+        user1 = create_test_user(db, "superstar@example.com")
+        user1.first_name = "Super"
+        user1.last_name = "Star"
+        user1.city = "Bogotá"
+        
+        user2 = create_test_user(db, "rising@example.com")
+        user2.first_name = "Rising"
+        user2.last_name = "Talent"
+        user2.city = "Medellín"
+        
+        user3 = create_test_user(db, "newbie@example.com")
+        user3.first_name = "New"
+        user3.last_name = "Player"
+        user3.city = "Bogotá"
+        
+        db.commit()
+        
+        # Crear videos
+        video1 = create_test_video(db, user1, status=VideoStatus.public)
+        video2 = create_test_video(db, user2, status=VideoStatus.public)
+        video3 = create_test_video(db, user3, status=VideoStatus.public)
+
+        # Se consulta el endpoint
+        response = client.get("/api/public/videos")
+
+        # Verificar que la respuesta sea exitosa
+        assert response.status_code == 200
+
+        public_videos = response.json()
+        videos = {v["id"]: v for v in public_videos}
+        
+        # Verificar que los tres videos están en la lista
+        assert video1.id in videos
+        assert video2.id in videos
+        assert video3.id in videos
+
+        # Verificar que los datos de los propietarios sean correctos
+        assert videos[video1.id]["owner_name"] == user1.first_name
+        assert videos[video1.id]["owner_city"] == user1.city
+
+        assert videos[video2.id]["owner_name"] == user2.first_name
+        assert videos[video2.id]["owner_city"] == user2.city
+
+        assert videos[video3.id]["owner_name"] == user3.first_name
+        assert videos[video3.id]["owner_city"] == user3.city
