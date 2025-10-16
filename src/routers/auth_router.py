@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from src.db.database import get_db
 from sqlalchemy.orm import Session
@@ -12,7 +12,7 @@ from src.core.security import verify_password, SECRET_KEY, ALGORITHM, ACCESS_TOK
 
 auth_router = APIRouter(tags=['Auth'])
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl='/api/auth/login')
+security = HTTPBearer()
 
 @auth_router.post("/api/auth/login", response_model=TokenData, status_code=status.HTTP_200_OK)
 async def login_user(user: UsuarioLoginSchema, db: Session = Depends(get_db)):
@@ -31,9 +31,9 @@ async def login_user(user: UsuarioLoginSchema, db: Session = Depends(get_db)):
     }
 
 
-async def verify_token(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get('sub')
         if user_id is None:
             raise HTTPException(

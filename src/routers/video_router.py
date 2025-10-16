@@ -2,16 +2,19 @@ from fastapi import APIRouter, status, HTTPException, UploadFile, File, Form
 from fastapi.params import Depends
 import os
 import shutil
+import aiofiles
+import aiofiles.os
 from pathlib import Path
 from datetime import datetime
 
 from src.models.db_models import Video, Vote, VideoStatus
 from src.routers.auth_router import verify_token
-from src.schemas.pydantic_schemas import VideoResponse, VideoUploadResponse
+from src.schemas.pydantic_schemas import VideoResponse, VideoUploadResponse, VideoListItem
 from sqlalchemy.orm import Session
 from src.db.database import get_db
 from src.models.db_models import User
 from src.tasks.video_tasks import process_video_task
+from typing import List
 
 
 
@@ -45,7 +48,7 @@ async def upload_video(
     **Respuesta:**
     ```json
     {
-        "message": "Video subido correctamente. Procesamiento en curso.",
+        "message": "Video subido exitosamente. Tarea creada.",
         "task_id": "123456"
     }
     ```
@@ -55,7 +58,7 @@ async def upload_video(
         if video_file.content_type not in ALLOWED_CONTENT_TYPES:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Tipo de archivo no permitido. Solo se acepta MP4. Recibido: {video_file.content_type}"
+                detail=f"Error en el archivo (tipo o tamaño no valido): {video_file.content_type}"
             )
         
         # VALIDACIÓN 2: Verificar tamaño del archivo
@@ -82,8 +85,8 @@ async def upload_video(
         file_path = UPLOAD_DIR / unique_filename
         
         # PASO 2: Guardar el archivo en el sistema de archivos
-        with open(file_path, "wb") as buffer:
-            buffer.write(file_content)
+        async with aiofiles.open(file_path, "wb") as buffer:
+            await buffer.write(file_content)
         
         # PASO 3: Crear registro en la base de datos con estado 'uploaded'
         new_video = Video(
@@ -110,7 +113,7 @@ async def upload_video(
         
         # PASO 6: Responder inmediatamente al cliente (sin esperar al procesamiento)
         return VideoUploadResponse(
-            message="Video subido correctamente. Procesamiento en curso.",
+            message="Video subido exitosamente. Tarea creada.",
             task_id=task.id
         )
         
@@ -120,11 +123,38 @@ async def upload_video(
     except Exception as e:
         # Limpiar el archivo si algo sale mal
         if 'file_path' in locals() and file_path.exists():
-            file_path.unlink()
+            await aiofiles.os.remove(file_path)
         
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al subir el video: {str(e)}"
+        )
+
+
+@video_router.get("/api/videos", response_model=List[VideoListItem], status_code=status.HTTP_200_OK)
+async def list_user_videos(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(verify_token)
+):
+    """
+    Lista todos los videos subidos por el usuario autenticado.
+    
+    Muestra el estado de cada video (uploaded o processed) junto con sus datos.
+            
+    **Códigos de respuesta:**
+    - 200: Lista de videos obtenida
+    - 401: Falta de autenticación
+    """
+    try:
+        # Obtener todos los videos del usuario autenticado
+        videos = db.query(Video).filter(Video.user_id == current_user.id).order_by(Video.uploaded_at.desc()).all()
+        
+        return videos
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al obtener la lista de videos: {str(e)}"
         )
 
 
@@ -158,8 +188,26 @@ async def delete_video(video_id:int, db: Session = Depends(get_db), current_user
     if exist_video.status == VideoStatus.public:
         raise HTTPException(status_code=400, detail="Video is public")
 
+    # Eliminar archivos físicos
+    files_to_delete = []
+    if exist_video.original_url:
+        files_to_delete.append(exist_video.original_url)
+    if exist_video.processed_url:
+        files_to_delete.append(exist_video.processed_url)
+    
+    # Eliminar de la base de datos primero
     db.delete(exist_video)
     db.commit()
+    
+    # Eliminar archivos físicos después del commit
+    for file_path in files_to_delete:
+        try:
+            if os.path.exists(file_path):
+                await aiofiles.os.remove(file_path)
+        except Exception as e:
+            # Log error pero no fallar la operación
+            print(f"Error eliminando archivo {file_path}: {e}")
+    
     return {
         'message': 'El video ha sido eliminado exitosamente.',
         'video_id': video_id

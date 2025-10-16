@@ -1,4 +1,4 @@
-# Documentación Completa - Desarrollo SW Nube API
+# Documentación Completa - API de Competencia de Habilidades
 
 ## Tabla de Contenidos
 1. [Descripción del Proyecto](#descripción-del-proyecto)
@@ -15,19 +15,24 @@
 
 ## Descripción del Proyecto
 
-API REST para autenticación de usuarios desarrollada con **FastAPI** que permite:
-- Registro de nuevos usuarios
-- Autenticación con JWT
-- Gestión de sesiones seguras
-- Validación de datos con Pydantic
+API REST completa para una plataforma de competencia de habilidades de jugadores desarrollada con **FastAPI** que incluye:
 
-### Características Principales
-- ✅ Autenticación JWT
-- ✅ Validación de datos robusta
-- ✅ Base de datos PostgreSQL
-- ✅ Contenedorización con Docker
+### 🎯 Funcionalidades Principales
+- 🔐 **Autenticación JWT** - Registro y login de usuarios
+- 🎥 **Gestión de Videos** - Subida, procesamiento y eliminación
+- 🏆 **Sistema de Rankings** - Clasificación por votos
+- ⚡ **Procesamiento Asíncrono** - Videos procesados con Celery
+- 📊 **API Pública** - Rankings accesibles sin autenticación
+
+### ✨ Características Técnicas
+- ✅ Autenticación JWT con expiración configurable
+- ✅ Procesamiento asíncrono de videos con Celery y Redis
+- ✅ Sistema de rankings en tiempo real
+- ✅ Validación robusta con Pydantic
+- ✅ Base de datos PostgreSQL con SQLAlchemy ORM
+- ✅ Contenedorización completa con Docker
 - ✅ Proxy reverso con Nginx
-- ✅ Pruebas automatizadas
+- ✅ Pruebas automatizadas (pytest + Postman)
 - ✅ Análisis de código con SonarCloud
 - ✅ CI/CD con GitHub Actions
 
@@ -36,14 +41,18 @@ API REST para autenticación de usuarios desarrollada con **FastAPI** que permit
 ### Stack Tecnológico
 - **Backend**: FastAPI (Python 3.11)
 - **Base de Datos**: PostgreSQL 15
+- **Cache/Broker**: Redis 7
+- **Procesamiento**: Celery Workers
 - **Proxy Reverso**: Nginx
 - **Contenedorización**: Docker & Docker Compose
 - **Autenticación**: JWT (JSON Web Tokens)
 - **Validación**: Pydantic
 - **Hashing**: bcrypt
-- **Testing**: pytest
+- **Procesamiento Video**: FFmpeg
+- **Testing**: pytest + Postman/Newman
 - **Análisis de Código**: SonarCloud
 - **CI/CD**: GitHub Actions
+
 
 ## Requisitos del Sistema
 
@@ -54,9 +63,10 @@ API REST para autenticación de usuarios desarrollada con **FastAPI** que permit
 - **Node.js**: >= 14 (para Newman - opcional)
 
 ### Recursos Mínimos
-- **RAM**: 2GB disponibles
-- **Disco**: 1GB espacio libre
-- **Puertos**: 80, 5432 (disponibles)
+- **RAM**: 4GB disponibles (para procesamiento de video)
+- **Disco**: 5GB espacio libre (para almacenar videos)
+- **Puertos**: 80, 5432, 6379 (disponibles)
+- **CPU**: 2 cores (recomendado para Celery workers)
 
 ## Instalación y Configuración
 
@@ -86,6 +96,9 @@ POSTGRES_PASSWORD=postgres
 SECRET_KEY=tu-clave-secreta-generada
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_SECONDS=3600
+
+# Redis/Celery Configuration
+REDIS_URL=redis://redis:6379/0
 ```
 
 **Generar SECRET_KEY segura:**
@@ -123,25 +136,32 @@ curl http://localhost/
 desarrollo-sw-nube/
 ├── src/                          # Código fuente
 │   ├── core/                     # Configuración central
+│   │   ├── celery_app.py         # Configuración Celery
 │   │   └── security.py           # Autenticación y JWT
 │   ├── db/                       # Base de datos
 │   │   └── database.py           # Configuración SQLAlchemy
 │   ├── models/                   # Modelos de datos
-│   │   └── db_models.py          # Modelos SQLAlchemy
+│   │   └── db_models.py          # Modelos (User, Video, Vote)
 │   ├── routers/                  # Endpoints de la API
 │   │   ├── auth_router.py        # Autenticación
-│   │   └── usuario_router.py     # Gestión de usuarios
+│   │   ├── usuario_router.py     # Gestión de usuarios
+│   │   ├── video_router.py       # Gestión de videos
+│   │   └── public_router.py      # Rankings públicos
 │   ├── schemas/                  # Esquemas Pydantic
 │   │   └── pydantic_schemas.py   # Validación de datos
+│   ├── tasks/                    # Tareas asíncronas
+│   │   └── video_tasks.py        # Procesamiento de videos
 │   └── main.py                   # Aplicación principal
 ├── test/                         # Pruebas unitarias
-│   └── test_api.py               # Tests de endpoints
+│   └── test_api.py               # Tests completos de API
 ├── collections/                  # Pruebas Postman
 │   ├── desarrollo-sw-nube-api.postman_collection.json
 │   ├── postman_environment.json
 │   └── README.md
 ├── docs/Entrega_1/              # Documentación
 │   └── README.md                # Este archivo
+├── uploads/                      # Videos originales
+├── processed/                    # Videos procesados
 ├── .github/workflows/           # CI/CD
 │   └── ci.yml                   # GitHub Actions
 ├── docker-compose.yml           # Configuración Docker
@@ -158,70 +178,284 @@ desarrollo-sw-nube/
 - **Local**: `http://localhost`
 - **Producción**: `http://tu-servidor-ip`
 
-### Endpoints Disponibles
-
-#### 1. Health Check
-```http
-GET /
+### Autenticación
+La API utiliza JWT (JSON Web Tokens). Después del login, incluye el token:
 ```
-**Respuesta:**
-```json
-"Healthcheck"
+Authorization: Bearer <token>
 ```
 
-#### 2. Registro de Usuario
+---
+
+## 🔐 Endpoints de Autenticación
+
+### POST /api/auth/signup
+**Descripción:** Registro de nuevos usuarios
+
 ```http
 POST /api/auth/signup
 Content-Type: application/json
 
 {
-    "first_name": "Juan",
-    "last_name": "Pérez",
-    "email": "juan@example.com",
-    "city": "Bogotá",
-    "country": "Colombia",
-    "password1": "mipassword123",
-    "password2": "mipassword123"
+  "first_name": "Juan",
+  "last_name": "Pérez", 
+  "email": "juan@example.com",
+  "city": "Bogotá",
+  "country": "Colombia",
+  "password1": "mipassword123",
+  "password2": "mipassword123"
 }
 ```
 
-**Respuesta Exitosa (201):**
+**Respuesta exitosa (201):**
 ```json
 {
-    "id": 1,
-    "first_name": "Juan",
-    "last_name": "Pérez",
-    "email": "juan@example.com",
-    "city": "Bogotá",
-    "country": "Colombia"
+  "id": 1,
+  "first_name": "Juan",
+  "last_name": "Pérez",
+  "email": "juan@example.com",
+  "city": "Bogotá",
+  "country": "Colombia"
 }
 ```
 
-**Errores Posibles:**
-- `400`: "Las contraseñas no coinciden"
-- `400`: "Email ya está registrado"
+**Errores:**
+- `400` - Contraseñas no coinciden o email duplicado
+- `422` - Datos de validación incorrectos
 
-#### 3. Login de Usuario
+---
+
+### POST /api/auth/login
+**Descripción:** Autenticación de usuarios existentes
+
 ```http
 POST /api/auth/login
 Content-Type: application/json
 
 {
-    "email": "juan@example.com",
-    "password": "mipassword123"
+  "email": "juan@example.com",
+  "password": "mipassword123"
 }
 ```
 
-**Respuesta Exitosa (200):**
+**Respuesta exitosa (200):**
 ```json
 {
-    "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
-    "token_type": "bearer"
+  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+  "token_type": "bearer",
+  "expires_in": 3600
 }
 ```
 
-**Errores Posibles:**
-- `401`: "Credenciales inválidas"
+**Errores:**
+- `401` - Credenciales inválidas
+
+---
+
+## 🎥 Endpoints de Videos (Requieren Autenticación)
+
+### POST /api/videos/upload
+**Descripción:** Subir video de habilidades
+
+```http
+POST /api/videos/upload
+Authorization: Bearer <token>
+Content-Type: multipart/form-data
+
+# Form-data:
+# video_file: [Archivo MP4, máximo 100MB]
+# title: "Mi video de habilidades"
+```
+
+**Respuesta exitosa (201):**
+```json
+{
+  "message": "Video subido exitosamente. Tarea creada.",
+  "task_id": "abc123-def456-ghi789"
+}
+```
+
+**Errores:**
+- `400` - Formato inválido o archivo muy grande
+- `401` - Token faltante o inválido
+- `422` - Campos faltantes
+
+---
+
+### GET /api/videos
+**Descripción:** Listar videos del usuario autenticado
+
+```http
+GET /api/videos
+Authorization: Bearer <token>
+```
+
+**Respuesta exitosa (200):**
+```json
+[
+  {
+    "video_id": 1,
+    "title": "Mi video de habilidades",
+    "status": "processed",
+    "uploaded_at": "2024-01-15T10:30:00Z",
+    "processed_at": "2024-01-15T10:35:00Z",
+    "processed_url": "processed/processed_video_123.mp4"
+  }
+]
+```
+
+**Estados de video:**
+- `uploaded` - Subido, pendiente de procesamiento
+- `processed` - Procesado y listo
+- `public` - Público y disponible para votación
+
+---
+
+### GET /api/videos/{video_id}
+**Descripción:** Obtener detalles de un video específico
+
+```http
+GET /api/videos/1
+Authorization: Bearer <token>
+```
+
+**Respuesta exitosa (200):**
+```json
+{
+  "video_id": 1,
+  "title": "Mi video de habilidades",
+  "status": "processed",
+  "uploaded_at": "2024-01-15T10:30:00Z",
+  "processed_at": "2024-01-15T10:35:00Z",
+  "original_url": "uploads/user_1_1705312200.mp4",
+  "processed_url": "processed/processed_user_1_1705312200.mp4",
+  "votes": 15
+}
+```
+
+**Errores:**
+- `403` - Video no pertenece al usuario
+- `404` - Video no encontrado
+
+---
+
+### DELETE /api/videos/{video_id}
+**Descripción:** Eliminar video (solo si no es público)
+
+```http
+DELETE /api/videos/1
+Authorization: Bearer <token>
+```
+
+**Respuesta exitosa (200):**
+```json
+{
+  "message": "El video ha sido eliminado exitosamente.",
+  "video_id": 1
+}
+```
+
+**Errores:**
+- `400` - Video es público (no se puede eliminar)
+- `403` - Video no pertenece al usuario
+- `404` - Video no encontrado
+
+---
+
+## 🏆 Endpoints Públicos
+
+### GET /api/public/rankings
+**Descripción:** Ranking de jugadores por votos acumulados
+
+**Parámetros de consulta:**
+- `page` (opcional): Número de página (por defecto 1)
+- `limit` (opcional): Elementos por página (1-100, por defecto 10)
+- `city` (opcional): Filtrar por ciudad
+
+```http
+GET /api/public/rankings?page=1&limit=10&city=Bogotá
+```
+
+**Respuesta exitosa (200):**
+```json
+[
+  {
+    "position": 1,
+    "username": "Juan Pérez",
+    "city": "Bogotá",
+    "votes": 1530
+  },
+  {
+    "position": 2,
+    "username": "Ana García",
+    "city": "Medellín", 
+    "votes": 1495
+  }
+]
+```
+
+**Errores:**
+- `400` - Parámetros inválidos
+- `422` - Validación de parámetros fallida
+
+---
+
+## 🔍 Endpoints de Utilidad
+
+### GET /
+**Descripción:** Health check de la API
+
+```http
+GET /
+```
+
+**Respuesta exitosa (200):**
+```json
+"Healthcheck"
+```
+
+---
+
+## Códigos de Estado HTTP
+
+| Código | Descripción |
+|--------|-------------|
+| 200 | OK - Operación exitosa |
+| 201 | Created - Recurso creado exitosamente |
+| 400 | Bad Request - Datos inválidos |
+| 401 | Unauthorized - Autenticación requerida |
+| 403 | Forbidden - Sin permisos |
+| 404 | Not Found - Recurso no encontrado |
+| 422 | Unprocessable Entity - Error de validación |
+| 500 | Internal Server Error - Error del servidor |
+
+---
+
+## Flujo de Trabajo Típico
+
+1. **Registro:** `POST /api/auth/signup`
+2. **Login:** `POST /api/auth/login` (obtener token)
+3. **Subir video:** `POST /api/videos/upload` (con token)
+4. **Listar videos:** `GET /api/videos` (verificar estado)
+5. **Ver ranking:** `GET /api/public/rankings` (público)
+6. **Eliminar video:** `DELETE /api/videos/{id}` (opcional)
+
+---
+
+## Procesamiento de Videos
+
+### Flujo de Procesamiento
+1. **Upload** - Usuario sube video MP4 (máx 100MB)
+2. **Validation** - Verificación de formato y tamaño
+3. **Queue** - Tarea encolada en Celery/Redis
+4. **Processing** - Worker procesa con FFmpeg (16:9, logos)
+5. **Complete** - Estado cambia a 'processed'
+
+### Notas Importantes
+- **Tokens JWT:** Expiran en 1 hora por defecto
+- **Videos:** Solo MP4, máximo 100MB
+- **Procesamiento:** Los videos se procesan asíncronamente
+- **Eliminación:** Solo videos no públicos pueden eliminarse
+- **Rankings:** Se actualizan en tiempo real
 
 ## Pruebas
 
@@ -316,7 +550,6 @@ curl -X POST http://localhost/api/auth/login \
 
 ## Despliegue
 
-### Desarrollo Local
 ```bash
 # Levantar servicios
 docker-compose up -d
@@ -326,32 +559,6 @@ docker-compose logs -f
 
 # Detener servicios
 docker-compose down
-```
-
-### Producción
-```bash
-# Clonar en servidor
-git clone <repository-url>
-cd desarrollo-sw-nube
-
-# Configurar .env para producción
-cp .env.example .env
-# Editar .env con valores de producción
-
-# Levantar en producción
-docker-compose up -d
-
-# Verificar servicios
-docker-compose ps
-curl http://tu-servidor-ip/
-```
-
-### Variables de Producción
-```env
-# Usar valores seguros en producción
-SECRET_KEY=clave-super-segura-de-64-caracteres-minimo
-POSTGRES_PASSWORD=password-seguro-de-base-datos
-DATABASE_URL=postgresql://postgres:password-seguro@postgres:5432/desarrollo_sw_nube
 ```
 
 ## Solución de Problemas
@@ -396,62 +603,3 @@ sudo lsof -i :80
 ports:
   - "8080:80"  # Usar puerto 8080
 ```
-
-### Comandos Útiles
-
-```bash
-# Ver logs en tiempo real
-docker-compose logs -f
-
-# Ejecutar comando en contenedor
-docker-compose exec fastapi bash
-
-# Limpiar todo (cuidado: borra datos)
-docker-compose down -v --remove-orphans
-docker system prune -a
-
-# Reconstruir imágenes
-docker-compose build --no-cache
-docker-compose up -d
-```
-
-### Contacto y Soporte
-
-Para problemas o preguntas:
-1. Revisar esta documentación
-2. Verificar logs con `docker-compose logs`
-3. Consultar issues en el repositorio
-4. Crear nuevo issue con detalles del problema
-
-## Sustentación
-
-### Video Demostrativo
-
-En este video se presenta la implementación completa del proyecto, demostrando:
-- Arquitectura y diseño de la solución
-- Funcionamiento de todos los endpoints
-- Ejecución de pruebas automatizadas
-- Integraciones con SonarCloud y CI/CD
-- Despliegue con Docker Compose
-
-**Video de Sustentación**: 🎥 *[Próximamente - Video será subido aquí]*
-
-📄 **[Documento de Sustentación Completo](../../sustentacion/Entrega_1.md)**
-
-### Puntos Clave de la Implementación
-
-1. **API REST completa** con FastAPI y validación robusta
-2. **Autenticación segura** con JWT y bcrypt
-3. **Base de datos** PostgreSQL con SQLAlchemy ORM
-4. **Contenedorización** completa con Docker Compose
-5. **Proxy reverso** con Nginx para producción
-6. **Pruebas automatizadas** con pytest y Postman/Newman
-7. **Análisis de código** integrado con SonarCloud
-8. **CI/CD pipeline** con GitHub Actions
-9. **Documentación completa** para facilitar el uso
-
----
-
-**¡La aplicación está lista para usar!** 🚀
-
-Sigue los pasos de instalación y tendrás una API completamente funcional con autenticación JWT, base de datos PostgreSQL y todas las integraciones configuradas.

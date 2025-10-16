@@ -80,3 +80,10 @@ class PublicVideoItem(VideoListItem):
         "from_attributes": True,
         "populate_by_name": True,
     }
+    
+class RankingResponse(BaseModel):
+    """Respuesta del ranking de jugadores"""
+    position: int
+    username: str
+    city: str
+    votes: int

@@ -2,6 +2,12 @@
 .env
 .env.*
 
+# Videos - ignore all files in these folders but keep the folders
+uploads/*
+!uploads/.gitkeep
+processed/*
+!processed/.gitkeep
+
 # Python
 __pycache__/
 *.py[cod]
