@@ -25,12 +25,13 @@ class Video(Base):
     __tablename__ = "videos"
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(255), nullable=False)
-    status = Column(Enum(VideoStatus), default=VideoStatus.processed)
+    status = Column(Enum(VideoStatus), default=VideoStatus.uploaded)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     uploaded_at = Column(DateTime, server_default=func.now())
     processed_at = Column(DateTime, nullable=True)
     original_url = Column(String(255), nullable=True)
     processed_url = Column(String(255), nullable=True)
+    task_id = Column(String(255), nullable=True)  # ID de la tarea de Celery
 
 class Vote(Base):
     __tablename__ = "votes"
