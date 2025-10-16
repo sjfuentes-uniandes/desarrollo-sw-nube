@@ -70,9 +70,11 @@ class VideoResponse(BaseModel):
         "populate_by_name": True,
     }
 
-class PublicVideoItem(VideoListItem):
-    votes: int
-    status: None = None #str = Field(None, exclude=True)
+class PublicVideoItem(BaseModel):
+    id: int = Field(validation_alias="id")
+    title: str
+    uploaded_at: datetime
+    processed_url: Optional[str] | None
     owner_name: Optional[str] = None
     owner_city: Optional[str] = None
 
@@ -80,7 +82,7 @@ class PublicVideoItem(VideoListItem):
         "from_attributes": True,
         "populate_by_name": True,
     }
-    
+
 class RankingResponse(BaseModel):
     """Respuesta del ranking de jugadores"""
     position: int

@@ -24,39 +24,35 @@ def list_public_videos(
     db: Session = Depends(get_db)
 ):
     try:
-        # Se cuentan los votos en subconsulta
-        subq_votes = (
-            db.query(
-                Vote.video_id.label("video_id"),
-                func.count(Vote.id).label("votes")
-            )
-            .group_by(Vote.video_id)
-            .subquery()
-        )
-
         videos = (
-            db.query(Video,
-                     func.coalesce(subq_votes.c.votes, 0)
-                     .label("votes")
-                     )
+            db.query(Video)
                     .filter(Video.status == VideoStatus.public)
                     .order_by(Video.uploaded_at.desc())
                     .all()
         )
+
+        # Consulta de los datos del propietario del video
+        user_ids = list({v.user_id for v in videos})
+        users = db.query(User.id, User.first_name, User.city).filter(User.id.in_(user_ids)).all()
+        users_map = {u.id: {"first_name": u.first_name, "city": u.city} for u in users}
+        
         public_videos =[]
-        for video, votes in videos:
+
+        for video in videos:
+            owner = users_map.get(video.user_id, {})
+
             video_with_info = {
                 "id": video.id,
                 "title": video.title,
-                "uploaded_at": video.uploaded_at,
-                "processed_url": video.processed_rul,
-                "votes": int(votes),
-                "owner_name": getattr(video, "owner", None) and getattr(video.owner, "first_name", None),
-                "owner_city": getattr(video, "owner", None) and getattr(video.owner, "city", None),
+                "uploaded_at": getattr(video, "uploaded_at", None),
+                "processed_url": getattr(video, "processed_url", None),
+                "owner_name": owner.get("first_name"),
+                "owner_city": owner.get("city"),
             }
-            public_videos.append(PublicVideoItem.model_validate(video_with_info))
+            public_videos.append(video_with_info)
 
         return public_videos
+    
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
