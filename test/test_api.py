@@ -1634,3 +1634,125 @@ class TestPublicVideos:
 
         assert videos[video3.id]["owner_name"] == user3.first_name
         assert videos[video3.id]["owner_city"] == user3.city
+
+class TestVotes:
+    """ Pruebas para el endpoint post de los votos """
+
+    def test_valid_own_video_vote(self, client):
+        """Test: Crear un voto con datos validos, voto de un video propio"""
+        db = TestingSessionLocal()
+
+        # Crear usuario y video
+        user = create_test_user(db, "superstar@example.com")
+        video = create_test_video(db, user)
+
+        # Se obtiene el header de autorización
+        auth_header_user = auth_header(client, user.email)
+
+        # Se consulta el endpoint con el header de autenticación y el usuario
+        response = client.post(
+            f"/api/public/videos/{video.id}/vote",
+            headers=auth_header_user)
+        
+        # Verificar que la respuesta sea exitosa
+        assert response.status_code == 200
+
+        # Verificar el mensaje de la respuesta
+        message = response.json()
+        assert message["message"] == "Vote succesfully registered"
+
+    def test_valid_others_video_vote(self, client):
+        """Test: Crear un voto con datos validos, voto de un video ajeno"""
+        db = TestingSessionLocal()
+
+        # Crear usuario
+        user1 = create_test_user(db, "superstar@example.com")
+        user2 = create_test_user(db, "rising@example.com")
+
+        # Crear video
+        video = create_test_video(db, user2)
+
+        # Se obtiene el header de autorización del user1
+        auth_header_user1 = auth_header(client, user1.email)
+
+        # Se consulta el endpoint con el header de autenticación
+        response = client.post(
+            f"/api/public/videos/{video.id}/vote",
+            headers=auth_header_user1,
+            data={"video_id": video.id})
+        
+        # Verificar que la respuesta sea exitosa
+        assert response.status_code == 200
+
+        # Verificar el mensaje de la respuesta
+        message = response.json()
+        assert message["message"] == "Vote succesfully registered"
+
+    def test_invalid_unathorized_vote(self, client):
+        """Test: Votar sin token de autorización"""
+
+        db = TestingSessionLocal()
+
+        # Crear usuario y video
+        user = create_test_user(db, "superstar@example.com")
+        video = create_test_video(db, user)
+
+        # Se consulta el endpoint sin el header de autenticación y el usuario
+        response = client.post(
+            f"/api/public/videos/{video.id}/vote")
+        
+        # Verificar que la respuesta NO sea exitosa
+        assert response.status_code == 403
+
+    def test_invalid_double_vote(self, client):
+        """Test: Crear un voto con datos validos e intentar volver a votar por el mismo video"""
+        db = TestingSessionLocal()
+
+        # Crear usuario y video
+        user = create_test_user(db, "superstar@example.com")
+        video = create_test_video(db, user)
+
+        # Se obtiene el header de autorización
+        auth_header_user = auth_header(client, user.email)
+
+        # Se consulta el endpoint con el header de autenticación y el usuario
+        response = client.post(
+            f"/api/public/videos/{video.id}/vote",
+            headers=auth_header_user)
+        
+        # Verificar que la respuesta sea exitosa
+        assert response.status_code == 200
+
+        # Se consulta el endpoint para intentar a volver a votar por el mismo video
+        response = client.post(
+            f"/api/public/videos/{video.id}/vote",
+            headers=auth_header_user)
+        
+        # Verificar que el endpoint niegue el voto
+        assert response.status_code == 400
+
+        # Verificar el mensaje
+        message = response.json()
+        assert message["detail"] == "You have already vote for this video"
+
+    def test_invalid_vote_none_video(self, client):
+        """Test: Crear un voto con datos validos e intentar volver a votar por el mismo video"""
+        db = TestingSessionLocal()
+
+        # Crear usuario
+        user = create_test_user(db, "superstar@example.com")
+
+        # Se obtiene el header de autorización
+        auth_header_user = auth_header(client, user.email)
+
+        # Se consulta el endpoint con el header de autenticación y el usuario para un video inexistente
+        response = client.post(
+            f"/api/public/videos/999/vote",
+            headers=auth_header_user)
+        
+        # Verificar que la respuesta NO sea exitosa
+        assert response.status_code == 404
+
+        # Verificar el mensaje
+        message = response.json()
+        assert message["detail"] == "Video not found"

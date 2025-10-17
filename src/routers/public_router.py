@@ -7,9 +7,10 @@ from datetime import datetime
 
 from src.models.db_models import User, Video, Vote, VideoStatus
 from src.routers.auth_router import verify_token
-from src.schemas.pydantic_schemas import PublicVideoItem, RankingResponse
+from src.schemas.pydantic_schemas import PublicVideoItem, RankingResponse, VoteResponse
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from src.db.database import get_db
 from src.models.db_models import User
 from src.tasks.video_tasks import process_video_task
@@ -109,3 +110,47 @@ async def get_rankings(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Parámetro inválido en la consulta: {str(e)}"
         )
+
+# Endpoint POST - Emitir un voto
+@public_router.post("/api/public/videos/{video_id}/vote", response_model=VoteResponse, status_code=status.HTTP_200_OK)
+def upload_vote(
+    video_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(verify_token)
+):
+    # Verificar que el video exista
+    verify_video = db.query(Video).filter(Video.id == video_id).first()
+    if not verify_video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    # Verificar que el usuario no haya votado aun por el video
+    verify_votes = db.query(Vote).filter(Vote.video_id == video_id, Vote.user_id == current_user.id).first()
+    if verify_votes:
+        raise HTTPException(
+            status_code=400, 
+            detail="You have already vote for this video")
+
+    try:
+        vote = Vote(
+                video_id = video_id,
+                user_id = current_user.id,
+                processed_at = datetime.now()
+        )
+        db.add(vote)
+        db.commit()
+        db.refresh(vote)
+
+        return VoteResponse(
+                message="Vote succesfully registered")
+    
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=400, 
+            detail="You have already voted for this video")
+    
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail="Error saving vote")
