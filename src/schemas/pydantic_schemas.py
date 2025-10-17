@@ -71,6 +71,7 @@ class VideoResponse(BaseModel):
     }
 
 class PublicVideoItem(BaseModel):
+    """Respuesta del listado de videos publicos"""
     id: int = Field(validation_alias="id")
     title: str
     uploaded_at: datetime
@@ -89,3 +90,7 @@ class RankingResponse(BaseModel):
     username: str
     city: str
     votes: int
+
+class VoteResponse(BaseModel):
+    """Respuesta al emitir un voto"""
+    message: str
