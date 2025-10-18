@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Reportes HTML de Locust (muy pesados)
+*.html
+!**/dashboards/*.html
+
+# CSVs detallados (mantener solo *_stats.csv)
+*_exceptions.csv
+*_failures.csv
+*_stats_history.csv
+*_monitored_*.csv
+
+# Archivos temporales de PowerShell
+*.tmp
+*.temp
+
+# Logs
+*.log
+
+# Datos temporales
+uploads/
+processed/
+
+# Backups
+*.backup
+*.bak
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Docker volumes locales
+docker-volumes/

@@ -158,6 +158,35 @@ desarrollo-sw-nube/
 │   ├── desarrollo-sw-nube-api.postman_collection.json
 │   ├── postman_environment.json
 │   └── README.md
+├── load_testing/                 # 🆕 Infraestructura de pruebas de capacidad
+│   ├── locustfile.py             # Script de pruebas de carga con Locust
+│   ├── Dockerfile                # Imagen personalizada de Locust
+│   ├── docker-compose.observability.yml  # Stack Prometheus/Grafana
+│   ├── README.md                 # Guía de uso de pruebas de carga
+│   ├── OBSERVABILITY_GUIDE.md    # Guía de observabilidad
+│   ├── QUERIES_GRAFANA_FUNCIONALES.md  # Queries Prometheus útiles
+│   ├── .gitignore                # Excluir archivos generados
+│   ├── create_test_user.ps1      # Script para crear usuario de prueba
+│   ├── run_load_tests.ps1        # Ejecutar pruebas individuales
+│   ├── run_complete_suite.ps1    # Suite completa de pruebas
+│   ├── start_observability.ps1   # Iniciar Prometheus/Grafana
+│   ├── stop_observability.ps1    # Detener observabilidad
+│   ├── observability/            # Configuración de observabilidad
+│   │   ├── prometheus.yml        # Config Prometheus (scraping)
+│   │   └── grafana/              
+│   │       ├── COMO_IMPORTAR_DASHBOARD.md  # Instrucciones dashboard
+│   │       └── dashboards/
+│   │           └── capacity_dashboard_working.json  # Dashboard funcional
+│   └── results/                  # Resultados de pruebas
+│       ├── results_smoke_stats.csv         # Prueba smoke (5 usuarios)
+│       ├── results_rampup_100_stats.csv    # Capacidad máxima (100u)
+│       ├── results_rampup_200_stats.csv    # Degradación (200u)
+│       ├── results_rampup_300_stats.csv    # Colapso (300u)
+│       ├── results_sostenida_80_stats.csv  # Estabilidad (80u, 5min)
+│       └── report_sostenida_80.html        # Reporte HTML prueba sostenida
+├── capacity_planning/            # 🆕 Documentación de pruebas de capacidad
+│   ├── plan_de_pruebas.md        # Plan completo Escenario 1 (Capa Web)
+│   └── graficos/                 # Evidencias visuales de Grafana
 ├── docs/Entrega_1/              # Documentación
 │   └── README.md                # Este archivo
 ├── uploads/                      # Videos originales
@@ -171,6 +200,24 @@ desarrollo-sw-nube/
 ├── sonar-project.properties     # Configuración SonarCloud
 └── README.md                    # Documentación principal
 ```
+
+### 🆕 Nuevas Carpetas - Pruebas de Capacidad
+
+#### `load_testing/`
+Infraestructura completa para pruebas de capacidad y observabilidad:
+- **Locust**: Generador de carga para simular usuarios concurrentes
+- **Prometheus**: Recolección de métricas del sistema (CPU, memoria, conexiones)
+- **Grafana**: Visualización de métricas en tiempo real
+- **Scripts automatizados**: Ejecución de pruebas y gestión de observabilidad
+- **Resultados**: CSV con métricas de 5 pruebas ejecutadas
+
+#### `capacity_planning/`
+Documentación detallada del Escenario 1 (Capacidad Capa Web):
+- **Plan de pruebas completo**: 2,000+ líneas con metodología, resultados y análisis
+- **Capacidad máxima identificada**: 100 usuarios @ 18.84 RPS
+- **Zona segura sostenida**: 80 usuarios @ 18.63 RPS (validado 5 minutos)
+- **5 Bottlenecks identificados**: Con severidad y soluciones propuestas
+- **Curvas de rendimiento**: Análisis de degradación y puntos de quiebre
 
 ## API Endpoints
 
