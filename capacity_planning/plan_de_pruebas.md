@@ -1302,23 +1302,6 @@ El **bottleneck principal es la configuración de Uvicorn** (workers y connectio
 | 300      | 6,000    | 47,000   | 132,000  |
 
 **Gráfica Visualización ASCII:**
-```
-p95 Latencia (ms)
-50000 |                            ● (300u)
-      |                            
-40000 |                            
-      |                            
-30000 |                     ● (200u)
-      |                     
-20000 |                     
-      |                     
-10000 |                     
-      |                     
- 1000 | SLO ─────────────────────────────
-      |   ●───────● (5u, 100u)
-    0 |─────────────────────────────────
-      0   50  100  150  200  250  300
-```
 <img width="752" height="504" alt="image" src="https://github.com/user-attachments/assets/ae10d321-095d-4f24-89b7-99da5cd72d4e" />
 
 **Análisis:**
@@ -1344,23 +1327,9 @@ p95 Latencia (ms)
 | 300      | 0%               | 296      | Timeouts de conexión |
 
 **Gráfica Visualización ASCII:**
-```
-Timeouts
-300 |                            ● (300u)
-    |                            
-250 |                            
-    |                            
-200 |                            
-    |                            
-150 |                            
-    |                            
-100 |                            
-    |                     ● (200u)
- 50 |   ●──────●          
-    |   (5u, 100u)
-  0 |─────────────────────────────────
-    0   50  100  150  200  250  300
-```
+
+<img width="752" height="504" alt="image" src="https://github.com/user-attachments/assets/b74b69a6-e330-4e0d-92ab-e69df72c5ea2" />
+
 
 **Análisis:**
 - ✅ **0% errores HTTP** en endpoints públicos en TODAS las pruebas
@@ -1386,19 +1355,8 @@ Timeouts
 | 300      | 7.70          | -59%              | 🔴🔴 Colapso |
 
 **Gráfica Visualización ASCII:**
-```
-RPS
- 20 |     ●────────┐ (100u: 18.84 RPS) ← MÁXIMO
-    |             │
- 15 |             │
-    |             │
- 10 |             └───● (200u: 11.29 RPS)
-    |                 │
-  5 |                 └────● (300u: 7.70 RPS)
-    |                      
-  0 |●────────────────────────────────
-    0    50   100  150  200  250  300
-```
+
+<img width="752" height="504" alt="image" src="https://github.com/user-attachments/assets/9773a6b4-4a4d-422e-bbaf-7eb69ff3c733" />
 
 **Análisis:**
 - ✅ **RPS máximo sostenido:** 18.84 RPS con 100 usuarios
