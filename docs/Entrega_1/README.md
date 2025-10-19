@@ -39,7 +39,7 @@ API REST completa para una plataforma de competencia de habilidades de jugadores
 ## Arquitectura y Tecnologías
 
 ### Modelo de datos
-![Modelo de datos](../images/modelo-datos.png)
+![Modelo de datos](../images/entidad-relacion.png)
 
 ### Diagrama de componentes
 ![Diagrama de componentes](../images/DiagramaComponentes.png)
@@ -48,7 +48,7 @@ API REST completa para una plataforma de competencia de habilidades de jugadores
 ![Diagrama de despliegue](../images/DiagramaDespliegue.png)
 
 ### Diagrama de flujo de procesos
-![Flujo de procesos](../images/Diagrama_flujo_procesos.png)
+![Flujo de procesos](../images/diagrama_flujo_procesos.png)
 
 
 
