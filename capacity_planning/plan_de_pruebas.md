@@ -1319,6 +1319,7 @@ p95 Latencia (ms)
     0 |─────────────────────────────────
       0   50  100  150  200  250  300
 ```
+<img width="752" height="504" alt="image" src="https://github.com/user-attachments/assets/ae10d321-095d-4f24-89b7-99da5cd72d4e" />
 
 **Análisis:**
 - ✅ **Zona óptima (5-100 usuarios):** Latencias bajo control, cumple SLO con p95 < 500ms
