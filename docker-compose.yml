@@ -45,7 +45,7 @@ services:
 
   celery_worker:
     build: .
-    command: celery -A src.core.celery_app worker --loglevel=info --concurrency=1
+    command: celery -A src.core.celery_app worker --loglevel=info
     env_file:
       - .env
     volumes:
