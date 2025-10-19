@@ -839,23 +839,8 @@ RPS
 
 **Gráfica Conceptual:**
 ```
-Latencia p95 (ms)
-50000 |                            ● (300u: 47s)
-      |                            
-40000 |                            
-      |                            
-30000 |                     ● (200u: 25s)
-      |                     
-20000 |                     
-      |                     
-10000 |                     
-      |                     
- 1000 | SLO ─────────────────────────────
-      |   ●───────● (5u, 100u < 1s)
-    0 |─────────────────────────────────
-      0   50  100  150  200  250  300
-          Usuarios Concurrentes
 ```
+<img width="752" height="504" alt="image" src="https://github.com/user-attachments/assets/5a8173a3-c96b-4c13-a757-f6a73f6387fb" />
 
 **Análisis:**
 
@@ -893,23 +878,11 @@ Latencia p95 (ms)
 
 **Gráfica Conceptual:**
 ```
-Timeouts
-300 |                            ● (300u: 296 timeouts)
-    |                            
-250 |                            
-    |                            
-200 |                            
-    |                            
-150 |                            
-    |                            
-100 |                            
-    |                     ● (200u: 52 timeouts)
- 50 |   ●──────●          
-    |   (5u, 100u: 0 timeouts)
-  0 |─────────────────────────────────
-    0   50  100  150  200  250  300
-        Usuarios Concurrentes
 ```
+
+<img width="752" height="504" alt="image" src="https://github.com/user-attachments/assets/42678a50-8b6c-42ae-b8db-b971bdc5d331" />
+
+
 
 **Análisis:**
 
