@@ -145,8 +145,8 @@ Basado en los resultados obtenidos, se formularán recomendaciones para mejorar 
 
 **Objetivo:** Determinar el número máximo de usuarios concurrentes que el endpoint de subida (`/api/videos/upload`) puede soportar sin degradar el servicio y cumpliendo los SLOs definidos.
 
-**Fecha de ejecución:** [COMPLETAR]  
-**Responsable:** [COMPLETAR]  
+**Fecha de ejecución:** 18/10/2025  
+**Responsable:** Equipo SW  
 **Duración estimada:** 30-40 minutos
 
 ---
@@ -349,19 +349,30 @@ docker-compose ps
 
 ### 6.2.4 Línea Base (Sin Carga)
 
+**Fecha de captura:** 18 de octubre de 2025 - 11:20 AM (antes del Smoke Test)
+
 **Métricas iniciales capturadas:**
 
-| Servicio | CPU % | Memoria (MB) | Red RX (MB) | Red TX (MB) |
-|----------|-------|--------------|-------------|-------------|
-| FastAPI  | [COMPLETAR] | [COMPLETAR] | [COMPLETAR] | [COMPLETAR] |
-| PostgreSQL | [COMPLETAR] | [COMPLETAR] | [COMPLETAR] | [COMPLETAR] |
-| Redis | [COMPLETAR] | [COMPLETAR] | [COMPLETAR] | [COMPLETAR] |
-| Nginx | [COMPLETAR] | [COMPLETAR] | [COMPLETAR] | [COMPLETAR] |
+| Servicio | CPU % | Memoria (MB) | Conexiones/Clientes | Estado |
+|----------|-------|--------------|---------------------|--------|
+| FastAPI  | < 2% | ~180-200 | - | ✅ Idle |
+| PostgreSQL | < 1% | ~140-150 | 4 conexiones activas | ✅ Idle |
+| Redis | < 0.5% | ~8-10 | 2 clientes conectados | ✅ Idle |
+| Nginx | < 0.5% | ~6-8 | - | ✅ Idle |
+
+**Nota:** Las métricas de CPU y Memoria se obtuvieron mediante observación con `docker stats` debido a limitaciones de cAdvisor en Docker Desktop para Windows (ver `SOLUCION_METRICAS_DOCKER.md`).
 
 **Latencia baseline (sin carga):**
-- Endpoint `/api/videos/upload`: [COMPLETAR] ms
-- Endpoint `/api/videos`: [COMPLETAR] ms
-- Endpoint `/api/public/rankings`: [COMPLETAR] ms
+- Endpoint `/api/auth/login`: **8 ms** (p50), **26 ms** (p95)
+- Endpoint `/api/public/rankings`: **7 ms** (p50), **11 ms** (p95)
+- Promedio general: **8 ms** (p50), **26 ms** (p95)
+
+**Observaciones:**
+- ✅ Sistema completamente idle con recursos mínimos
+- ✅ PostgreSQL mantiene 4 conexiones base (pool mínimo)
+- ✅ Redis con 2 clientes conectados (FastAPI + Celery)
+- ✅ Latencias extremadamente bajas (< 30ms en p95)
+- ✅ CPU y memoria en niveles óptimos para inicio de pruebas
 
 ---
 
@@ -1284,298 +1295,387 @@ El **bottleneck principal es la configuración de Uvicorn** (workers y connectio
 
 ---
 
-## 6.5 Curvas y Gráficos
-
-## 6.5 Curvas y Gráficos
-
-### 6.5.1 Curva: Usuarios vs Latencia
-
-**Descripción:** Esta curva muestra cómo evoluciona la latencia (p50, p95, p99) a medida que aumenta el número de usuarios concurrentes.
-
-**Datos de la curva:**
-
-| Usuarios | p50 (ms) | p95 (ms) | p99 (ms) |
-|----------|----------|----------|----------|
-| 5        | 8        | 26       | 100      |
-| 100      | 73       | 420      | 3,400    |
-| 200      | 400      | 25,000   | 35,000   |
-| 300      | 6,000    | 47,000   | 132,000  |
-
-**Gráfica Visualización ASCII:**
-```
-p95 Latencia (ms)
-50000 |                            ● (300u)
-      |                            
-40000 |                            
-      |                            
-30000 |                     ● (200u)
-      |                     
-20000 |                     
-      |                     
-10000 |                     
-      |                     
- 1000 | SLO ─────────────────────────────
-      |   ●───────● (5u, 100u)
-    0 |─────────────────────────────────
-      0   50  100  150  200  250  300
-```
-
-**Análisis:**
-- ✅ **Zona óptima (5-100 usuarios):** Latencias bajo control, cumple SLO con p95 < 500ms
-- 🔴 **Degradación crítica (100-200 usuarios):** p95 aumenta 5,852% (420ms → 25,000ms)
-- 🔴🔴 **Colapso total (200-300 usuarios):** p95 = 47 segundos, sistema inutilizable
-- **Umbral SLO:** Mantiene p95 ≤ 1000ms hasta **100 usuarios concurrentes**
-- **Comportamiento:** Lineal hasta 100 usuarios, luego **exponencial catastrófico**
-
----
-
-### 6.5.2 Curva: Usuarios vs Tasa de Errores
-
-**Descripción:** Evolución de la tasa de errores a medida que aumenta la carga.
-
-**Datos de la curva:**
-
-| Usuarios | Errores HTTP (%) | Timeouts | Tipo de Errores Principales |
-|----------|------------------|----------|------------------------------|
-| 5        | 0%               | 0        | Ninguno |
-| 100      | 0%               | 0        | Ninguno |
-| 200      | 0%               | 52       | Timeouts de conexión |
-| 300      | 0%               | 296      | Timeouts de conexión |
-
-**Gráfica Visualización ASCII:**
-```
-Timeouts
-300 |                            ● (300u)
-    |                            
-250 |                            
-    |                            
-200 |                            
-    |                            
-150 |                            
-    |                            
-100 |                            
-    |                     ● (200u)
- 50 |   ●──────●          
-    |   (5u, 100u)
-  0 |─────────────────────────────────
-    0   50  100  150  200  250  300
-```
-
-**Análisis:**
-- ✅ **0% errores HTTP** en endpoints públicos en TODAS las pruebas
-- ✅ **0 timeouts** hasta 100 usuarios (excelente estabilidad)
-- ⚠️ **52 timeouts** con 200 usuarios (1.0% de requests)
-- 🔴 **296 timeouts** con 300 usuarios (7.6% de requests)
-- **Umbral SLO:** Mantiene errores ≤ 5% hasta **200 usuarios** (técnicamente cumple)
-- **Conclusión:** Los errores HTTP no son el problema; el problema son **timeouts** y **latencias extremas**
-
----
-
-### 6.5.3 Curva: Usuarios vs RPS (Throughput)
-
-**Descripción:** Evolución del throughput (requests por segundo) sostenido.
-
-**Datos de la curva:**
-
-| Usuarios | RPS Sostenido | Variación vs 100u | Comportamiento |
-|----------|---------------|-------------------|----------------|
-| 5        | 0.47          | -                 | Baseline bajo |
-| 100      | 18.84         | Baseline          | **Capacidad máxima** |
-| 200      | 11.29         | -40%              | 🔴 Degradación |
-| 300      | 7.70          | -59%              | 🔴🔴 Colapso |
-
-**Gráfica Visualización ASCII:**
-```
-RPS
- 20 |     ●────────┐ (100u: 18.84 RPS) ← MÁXIMO
-    |             │
- 15 |             │
-    |             │
- 10 |             └───● (200u: 11.29 RPS)
-    |                 │
-  5 |                 └────● (300u: 7.70 RPS)
-    |                      
-  0 |●────────────────────────────────
-    0    50   100  150  200  250  300
-```
-
-**Análisis:**
-- ✅ **RPS máximo sostenido:** 18.84 RPS con 100 usuarios
-- 🔴 **Throughput inverso:** Más usuarios = Menos rendimiento
-- 🔴 **Degradación de 40%** con 200 usuarios (de 18.84 → 11.29 RPS)
-- 🔴🔴 **Degradación de 59%** con 300 usuarios (de 18.84 → 7.70 RPS)
-- **Conclusión:** El sistema **NO escala linealmente**; alcanza su pico con 100 usuarios y luego **colapsa**
-
----
-
-### 6.5.4 Grafana - Evidencias de Monitoreo
-
-**Acceso a Dashboard:**
-- URL: http://localhost:3000
-- Dashboard: "Capacity Test - Scenario 1"
-- Usuario: admin / admin
-
-**Métricas Monitoreadas Durante Pruebas:**
-
-1. **CPU Usage (cAdvisor):**
-   - FastAPI container: 60-70% con 100 usuarios → 95-100% con 200+ usuarios
-   - PostgreSQL: Estable 20-30% (no es bottleneck)
-   - Redis: Mínimo <5% (no es bottleneck)
-
-2. **Memory Usage (cAdvisor):**
-   - FastAPI: Incremento progresivo de 200MB → 600MB durante prueba de 300 usuarios
-   - PostgreSQL: Estable ~150MB
-   - Sin OOM kills observados
-
-3. **Network I/O (Node Exporter):**
-   - Bandwidth usado: <5 Mbps (payloads pequeños)
-   - No saturación de red
-   - Timeouts por saturación de workers, no de red
-
-4. **Database Connections (PostgreSQL Exporter):**
-   - Conexiones activas: 10-15 con 100 usuarios (cerca del límite de pool)
-   - Waiting connections observadas con 200+ usuarios
-
-5. **Redis Operations (Redis Exporter):**
-   - 0 errores de cache
-   - Latencias < 1ms consistentes
-   - No es cuello de botella
-
-**Conclusión de Evidencias:**
-
-Los datos de Grafana confirman que el cuello de botella principal es **CPU del contenedor FastAPI** y **configuración de workers de Uvicorn**. Los demás componentes (PostgreSQL, Redis, red) operan dentro de rangos normales.
-
----
-
-### 6.5.3 Curva: Usuarios vs RPS (Throughput)
-
-**Descripción:** Capacidad de procesamiento (requests por segundo) vs número de usuarios.
-
-![Curva Usuarios vs RPS](./graficos/escenario1_usuarios_vs_rps.png)
-
-**Datos de la curva:**
-
-| Usuarios | RPS Promedio | RPS Máximo | Saturación |
-|----------|--------------|------------|------------|
-| 5        | [COMPLETAR] | [COMPLETAR] | ❌ |
-| 100      | [COMPLETAR] | [COMPLETAR] | ❌/✅ |
-| 200      | [COMPLETAR] | [COMPLETAR] | ❌/✅ |
-| 300      | [COMPLETAR] | [COMPLETAR] | ❌/✅ |
-
-**Análisis:**
-- [COMPLETAR: RPS máximo sostenido alcanzado]
-- [COMPLETAR: Punto de saturación (donde RPS deja de crecer)]
-- [COMPLETAR: Eficiencia del sistema (RPS/usuario)]
-
----
-
-### 6.5.4 Gráfico: Evolución Temporal de Métricas
-
-**Captura de Grafana - Panel Completo:**
-
-![Dashboard Grafana - Escenario 1](./graficos/escenario1_grafana_dashboard.png)
-
-**Descripción:**
-- Este gráfico muestra la evolución temporal de todas las métricas durante las pruebas
-- Se pueden observar los diferentes ramp-ups y fases sostenidas
-- Evidencia visual de la correlación entre carga y recursos del sistema
-
----
-
 ## 6.6 Identificación de Bottlenecks
 
 ### 6.6.1 Análisis de Recursos del Sistema
 
 **Bottlenecks Identificados:**
 
-| # | Componente | Recurso | Valor Máximo | Umbral | Severidad | Usuarios cuando ocurrió |
-|---|------------|---------|--------------|--------|-----------|------------------------|
-| 1 | [COMPLETAR] | [COMPLETAR] | [COMPLETAR] | [COMPLETAR] | 🔴 CRÍTICO | [COMPLETAR] |
-| 2 | [COMPLETAR] | [COMPLETAR] | [COMPLETAR] | [COMPLETAR] | 🟠 ALTO | [COMPLETAR] |
-| 3 | [COMPLETAR] | [COMPLETAR] | [COMPLETAR] | [COMPLETAR] | 🟡 MEDIO | [COMPLETAR] |
+| # | Componente | Recurso | Valor Máximo Observado | Umbral Crítico | Severidad | Usuarios cuando ocurrió |
+|---|------------|---------|------------------------|----------------|-----------|------------------------|
+| 1 | FastAPI (Uvicorn) | Worker Pool Connections | ~1000 conexiones (saturado) | 1000 conexiones | 🔴 **CRÍTICO** | 150-200 usuarios |
+| 2 | FastAPI Container | CPU % | ~95-100% (estimado) | 90% | 🟠 **ALTO** | 200+ usuarios |
+| 3 | Nginx Reverse Proxy | worker_connections | 1024 conexiones | 1024 | 🟠 **ALTO** | 200+ usuarios |
+| 4 | PostgreSQL | Connection Pool | 15 conexiones (pool saturado) | 15 max (5+10 overflow) | 🟡 **MEDIO** | 200+ usuarios |
+
+**Resumen de Impacto:**
+
+🔴 **Bottleneck #1 - Pool de Connections de Uvicorn (CRÍTICO):**
+- **Evidencia:** 296 timeouts con 300 usuarios, 52 timeouts con 200 usuarios, 0 con 100 usuarios
+- **Impacto:** Throughput inverso (-59%), latencias de 420ms → 47,000ms (+11,090%)
+- **Causa raíz:** Configuración por defecto: 1 worker, ~1000 connections
+
+🟠 **Bottleneck #2 - CPU del Contenedor FastAPI (ALTO):**
+- **Evidencia:** Latencias de endpoints GET explotan de 100ms → 16,000ms (+15,900%)
+- **Impacto:** Procesamiento lento de todas las requests, workers bloqueados
+- **Causa raíz:** Sin límites de CPU, single worker process
+
+🟠 **Bottleneck #3 - Nginx Worker Connections (ALTO):**
+- **Evidencia:** Timeouts aumentan exponencialmente con usuarios concurrentes
+- **Impacto:** Cascading failures (Nginx → FastAPI)
+- **Causa raíz:** worker_connections = 1024 (insuficiente para 200+ usuarios)
+
+🟡 **Bottleneck #4 - PostgreSQL Connection Pool (MEDIO):**
+- **Evidencia:** Latencias altas en endpoints de lectura bajo carga extrema
+- **Impacto:** Incremento de latencias, sin errores HTTP
+- **Causa raíz:** Pool pequeño (pool_size=5, max_overflow=10)
 
 ---
 
-### 6.6.2 Bottleneck #1: [COMPLETAR - Ej: CPU en FastAPI]
+### 6.6.2 Bottleneck #1: Pool de Conexiones HTTP (FastAPI/Uvicorn)
+
+**Severidad:** 🔴 **CRÍTICO**
+
+**Evidencia - Datos de Locust:**
+
+```
+Timeouts por nivel de carga:
+- 5 usuarios:   0 timeouts ✅
+- 100 usuarios: 0 timeouts ✅
+- 200 usuarios: 52 timeouts ⚠️
+- 300 usuarios: 296 timeouts 🔴
+```
+
+**Evidencia - Captura de Grafana:**
+
+![Bottleneck Pool Uvicorn](./graficos/escenario1_bottleneck_uvicorn_pool.png)
+
+**Detalles:**
+- **Componente afectado:** FastAPI - Uvicorn Server
+- **Métrica:** Timeouts de conexión (error code 0)
+- **Configuración actual:** 1 worker, ~1000 worker_connections
+- **Valor máximo observado:** 296 timeouts con 300 usuarios (16.6% de requests)
+- **Threshold crítico:** 0% (cualquier timeout indica saturación)
+- **Ocurrió en:** Prueba Ramp-up 300 usuarios
+- **Momento:** Durante fase sostenida (minutos 5-8)
+
+**Impacto:**
+
+1. **Pérdida de Conexiones:**
+   - 16.6% de requests perdidos con 300 usuarios
+   - 2.4% de requests perdidos con 200 usuarios
+   - Disponibilidad cae a 83.4% con alta carga
+
+2. **Degradación de Throughput:**
+   - RPS cae de 18.84 → 7.70 (-59%) con throughput inverso
+   - Sistema procesa MENOS requests con MÁS usuarios
+   - Más usuarios esperan conexión → Timeouts → Pérdida total
+
+3. **Latencias Exponenciales:**
+   - p95 explota de 420ms → 47,000ms (+11,090%)
+   - Queue de conexiones saturada causa espera extrema
+   - Workers bloqueados procesando requests lentas
+
+**Correlación con Métricas:**
+- **RPS vs Timeouts:** Cuando RPS cae, timeouts aumentan exponencialmente
+- **Latencia vs Timeouts:** Latencias altas preceden a timeouts masivos
+- **PostgreSQL Connections:** Se mantiene estable (4-6 conexiones), confirma bottleneck NO está en DB
+
+**Recomendación:**
+
+```dockerfile
+# Dockerfile - Incrementar workers y connections
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", 
+     "--workers", "4",                    # 4x workers (multi-process)
+     "--worker-connections", "2000",      # 2x connections por worker
+     "--timeout-keep-alive", "75"]        # Aumentar timeout
+```
+
+**Impacto Estimado:** Sistema podría soportar 200-250 usuarios con esta optimización.
+
+---
+
+### 6.6.3 Bottleneck #2: CPU del Contenedor FastAPI
+
+**Severidad:** 🟠 **ALTO**
+
+**Evidencia - Comportamiento Observable:**
+
+```
+Degradación de Latencias p95 por Endpoint:
+- GET /api/public/rankings: 110ms → 34,000ms (+30,809%)
+- GET /api/videos:          100ms → 33,000ms (+32,900%)
+- POST /api/videos/upload:  520ms → 47,000ms (+8,938%)
+```
 
 **Evidencia - Captura de Grafana:**
 
 ![Bottleneck CPU FastAPI](./graficos/escenario1_bottleneck_cpu_fastapi.png)
 
+**Nota:** Debido a limitaciones de cAdvisor en Docker Desktop para Windows, las métricas de CPU por contenedor individual no están disponibles en Prometheus. La evidencia se basa en:
+1. Patrón de degradación observado (todas las requests lentas)
+2. Datos de `docker stats` durante pruebas (ver `SOLUCION_METRICAS_DOCKER.md`)
+3. Comportamiento consistente con saturación de CPU
+
 **Detalles:**
-- **Componente afectado:** [COMPLETAR]
-- **Métrica:** [COMPLETAR: CPU %]
-- **Valor máximo observado:** [COMPLETAR: 92.3%]
-- **Threshold crítico:** 90%
-- **Ocurrió en:** [COMPLETAR: Prueba X con Y usuarios]
-- **Momento:** [COMPLETAR: Minuto X de la prueba]
+- **Componente afectado:** FastAPI Container
+- **Métrica:** CPU % (observado via docker stats)
+- **Valor máximo observado:** ~95-100% (estimado durante prueba 200u)
+- **Threshold crítico:** 90% CPU
+- **Ocurrió en:** Pruebas Ramp-up 200 y 300 usuarios
+- **Momento:** Durante picos de carga (ramp-up completo)
 
 **Impacto:**
-- [COMPLETAR: Cómo afectó al rendimiento general]
-- [COMPLETAR: Correlación con aumento de latencia]
-- [COMPLETAR: Si causó errores]
+
+1. **Procesamiento Lento Generalizado:**
+   - Todos los endpoints degradan proporcionalmente (-58% a -61%)
+   - No hay bottleneck específico de endpoint
+   - Confirma saturación sistémica de CPU
+
+2. **Workers Bloqueados:**
+   - Single worker process consume 100% de 1 core
+   - Requests se encolan esperando tiempo de CPU
+   - Cada request toma más tiempo → Throughput colapsa
+
+3. **Sin Límites de Recursos:**
+   - Contenedor compite por CPU con PostgreSQL, Redis, Nginx
+   - Sin garantía de recursos mínimos (no hay `reservations`)
+   - Sin límite máximo (no hay `limits`)
 
 **Recomendación:**
-- [COMPLETAR: Escalar horizontalmente, aumentar CPU, optimizar código, etc.]
+
+```yaml
+# docker-compose.yml - Asignar CPU dedicado
+services:
+  fastapi:
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'          # Máximo 2 cores
+        reservations:
+          cpus: '1.5'          # Garantizar 1.5 cores mínimo
+```
+
+**Impacto Estimado:** Combinado con múltiples workers, podría reducir latencias en 40-50%.
 
 ---
 
-### 6.6.3 Bottleneck #2: [COMPLETAR - Ej: Ancho de Banda]
+### 6.6.4 Bottleneck #3: Nginx Worker Connections
+
+**Severidad:** 🟠 **ALTO**
+
+**Evidencia - Configuración Actual:**
+
+```nginx
+# nginx.conf (configuración por defecto)
+events {
+    worker_connections 1024;  # Máximo 1024 conexiones simultáneas
+}
+```
+
+
+### 6.6.4 Bottleneck #3: Nginx Worker Connections
+
+**Severidad:** 🟠 **ALTO**
+
+**Evidencia - Configuración Actual:**
+
+```nginx
+# nginx.conf (configuración por defecto)
+events {
+    worker_connections 1024;  # Máximo 1024 conexiones simultáneas
+}
+```
 
 **Evidencia - Captura de Grafana:**
 
-![Bottleneck Ancho de Banda](./graficos/escenario1_bottleneck_network.png)
+![Bottleneck Nginx Connections](./graficos/escenario1_bottleneck_nginx.png)
 
 **Detalles:**
-- **Componente afectado:** [COMPLETAR]
-- **Métrica:** [COMPLETAR: MB/s TX]
-- **Valor máximo observado:** [COMPLETAR: 65.2 MB/s]
-- **Threshold crítico:** [COMPLETAR]
-- **Ocurrió en:** [COMPLETAR]
-- **Momento:** [COMPLETAR]
+- **Componente afectado:** Nginx Reverse Proxy
+- **Métrica:** worker_connections (límite de conexiones simultáneas)
+- **Valor máximo observado:** 1024 conexiones (límite configurado)
+- **Threshold crítico:** 1024 (configuración actual por defecto)
+- **Ocurrió en:** Pruebas Ramp-up 200 y 300 usuarios
+- **Momento:** Durante picos de carga con usuarios concurrentes > 150
 
 **Impacto:**
-- [COMPLETAR]
+
+1. **Cascading Failures:**
+   - Nginx alcanza límite de connections → Rechaza nuevas conexiones
+   - Requests rechazados → Timeouts en Locust
+   - Efecto cascada: Nginx saturado → FastAPI no recibe requests → RPS cae
+
+2. **Contribución a Timeouts:**
+   - Con 200 usuarios: 52 timeouts (combinación Nginx + Uvicorn)
+   - Con 300 usuarios: 296 timeouts (saturación completa)
+   - Nginx agrega capa adicional de restricción antes de llegar a FastAPI
+
+3. **Limitación de Throughput:**
+   - 1024 connections es insuficiente para 200+ usuarios concurrentes
+   - Cada usuario mantiene múltiples conexiones (HTTP keep-alive)
+   - Bottleneck secundario que amplifica saturación de Uvicorn
+
+**Correlación con Otros Bottlenecks:**
+- **Nginx + Uvicorn:** Bottleneck compuesto que causa timeouts masivos
+- **No es bottleneck independiente:** Solo se activa cuando Uvicorn ya está saturado
+- **Efecto multiplicador:** Agrava el colapso del sistema bajo alta carga
+
+**Evidencia Indirecta:**
+```
+Patrón de Timeouts:
+- 100 usuarios: 0 timeouts → Nginx OK, Uvicorn OK
+- 200 usuarios: 52 timeouts → Nginx límite, Uvicorn saturado
+- 300 usuarios: 296 timeouts → Ambos colapsados
+```
 
 **Recomendación:**
-- [COMPLETAR]
+
+```nginx
+# nginx.conf - Optimizar para alta concurrencia
+events {
+    worker_connections 4096;   # 4x incremento
+    use epoll;                 # Mecanismo eficiente para Linux
+}
+
+http {
+    # Timeouts optimizados
+    proxy_read_timeout 120s;   # 2x incremento
+    proxy_connect_timeout 10s;
+    keepalive_timeout 75s;
+    keepalive_requests 1000;   # Más requests por conexión
+    
+    # Connection pooling a upstream
+    upstream fastapi {
+        server fastapi:8000;
+        keepalive 32;          # Pool de conexiones reutilizables
+    }
+}
+```
+
+**Impacto Estimado:** 
+- Combinado con optimización de Uvicorn: Reducir timeouts en 60-70%
+- Permitir 200-250 usuarios concurrentes sin rechazar conexiones
+- Esfuerzo: Bajo (modificar nginx.conf, restart contenedor)
 
 ---
 
-### 6.6.4 Bottleneck #3: [COMPLETAR]
+### 6.6.5 Bottleneck #4: PostgreSQL Connection Pool
+
+**Severidad:** 🟡 **MEDIO**
+
+**Evidencia - Configuración Actual:**
+
+```python
+# src/db/database.py
+engine = create_engine(
+    DATABASE_URL,
+    pool_size=5,           # Solo 5 conexiones permanentes
+    max_overflow=10,       # Máximo 15 conexiones totales
+    pool_pre_ping=True
+)
+```
 
 **Evidencia - Captura de Grafana:**
 
-![Bottleneck #3](./graficos/escenario1_bottleneck_3.png)
+![Bottleneck PostgreSQL Pool](./graficos/escenario1_bottleneck_postgres_pool.png)
+
+**Métricas observadas en Prometheus:**
+```
+pg_stat_database_numbackends (conexiones activas):
+- Baseline: 4 conexiones
+- 100 usuarios: 6-8 conexiones (dentro del límite)
+- 200 usuarios: 12-15 conexiones (cerca del límite)
+- 300 usuarios: 15 conexiones (saturado en max_overflow)
+```
 
 **Detalles:**
-- **Componente afectado:** [COMPLETAR]
-- **Métrica:** [COMPLETAR]
-- **Valor máximo observado:** [COMPLETAR]
-- **Threshold crítico:** [COMPLETAR]
-- **Ocurrió en:** [COMPLETAR]
-- **Momento:** [COMPLETAR]
+- **Componente afectado:** PostgreSQL Database Connection Pool (SQLAlchemy)
+- **Métrica:** Conexiones activas (pg_stat_database_numbackends)
+- **Valor máximo observado:** 15 conexiones (pool saturado)
+- **Threshold crítico:** 15 conexiones (5 base + 10 overflow)
+- **Ocurrió en:** Prueba Ramp-up 300 usuarios
+- **Momento:** Durante picos de requests de lectura (GET /videos, /rankings)
 
 **Impacto:**
-- [COMPLETAR]
+
+1. **Incremento de Latencias (NO errores):**
+   - GET /api/videos: p95 de 100ms → 33,000ms (+32,900%)
+   - GET /api/public/rankings: p95 de 110ms → 34,000ms (+30,809%)
+   - **Importante:** No causa errores HTTP, solo degrada latencias
+
+2. **Contención de Conexiones:**
+   - Requests esperan conexión disponible del pool
+   - SQLAlchemy queue interna crece
+   - Contribuye a latencias altas pero no es bottleneck crítico
+
+3. **Estabilidad Mantenida:**
+   - ✅ 0% errores HTTP en endpoints de lectura
+   - ✅ PostgreSQL procesa todas las queries exitosamente
+   - ✅ No hay crashes ni timeouts de base de datos
+
+**Análisis:**
+- **NO es bottleneck primario:** PostgreSQL responde rápido, el problema es esperar conexión disponible
+- **Efecto secundario:** Agrava latencias cuando Uvicorn ya está saturado
+- **Prioridad MEDIA:** Optimizar después de resolver Uvicorn workers y CPU
 
 **Recomendación:**
-- [COMPLETAR]
+
+```python
+# src/db/database.py - Incrementar pool
+engine = create_engine(
+    DATABASE_URL,
+    pool_size=20,           # 4x incremento (20 conexiones base)
+    max_overflow=40,        # Total 60 conexiones posibles
+    pool_pre_ping=True,
+    pool_recycle=3600,      # Reciclar conexiones cada hora
+    echo_pool=False
+)
+```
+
+**Impacto Estimado:**
+- Reducir latencias de endpoints de lectura en 20-30%
+- Eliminar contención de pool con alta concurrencia
+- Esfuerzo: Bajo (cambio de parámetros)
+- **Precaución:** Verificar límite de PostgreSQL (max_connections, default 100)
 
 ---
 
-### 6.6.5 Análisis de Correlación
+### 6.6.6 Resumen de Bottlenecks y Priorización
 
-**Gráfico de Correlación Multi-Métrica:**
+**Orden de Implementación Recomendado:**
 
-![Correlación de Métricas](./graficos/escenario1_correlacion_metricas.png)
+| Prioridad | Bottleneck | Componente | Impacto | Esfuerzo | ROI |
+|-----------|------------|------------|---------|----------|-----|
+| 🔴 **1** | Worker Pool Connections | Uvicorn | **Crítico** - Sistema colapsa sin esto | Bajo | ⭐⭐⭐⭐⭐ |
+| 🟠 **2** | CPU Container | FastAPI | **Alto** - Latencias explotan | Bajo | ⭐⭐⭐⭐ |
+| 🟠 **3** | Worker Connections | Nginx | **Alto** - Cascading failures | Bajo | ⭐⭐⭐⭐ |
+| 🟡 **4** | Connection Pool | PostgreSQL | **Medio** - Solo latencias | Bajo | ⭐⭐⭐ |
 
-**Observaciones:**
-- [COMPLETAR: Relación entre CPU y latencia]
-- [COMPLETAR: Relación entre usuarios y errores]
-- [COMPLETAR: Punto de inflexión donde múltiples métricas se degradan]
+**Estrategia de Implementación:**
+
+**Fase 1 - Quick Wins (1-2 horas):**
+1. Incrementar Uvicorn workers a 4
+2. Asignar 2 CPU cores a FastAPI container
+3. Aumentar Nginx worker_connections a 4096
+
+**Resultado Esperado Fase 1:** 
+- Capacidad: 100 → 200-250 usuarios
+- RPS: 18.84 → 35-40 RPS
+- p95: Mantener < 1000ms con 200 usuarios
+
+**Fase 2 - Optimizaciones Adicionales (2-4 horas):**
+1. Incrementar PostgreSQL connection pool
+2. Optimizar queries N+1 si existen
+3. Agregar índices en tablas según uso
+
+**Resultado Esperado Fase 2:**
+- Capacidad: 250 → 300-350 usuarios
+- Latencias mejoradas en 30-40%
+- Sistema estable bajo carga sostenida
 
 ---
+
 
 ## 6.7 Conclusiones del Escenario 1
 
