@@ -38,6 +38,20 @@ API REST completa para una plataforma de competencia de habilidades de jugadores
 
 ## Arquitectura y Tecnologías
 
+### Modelo de datos
+![Modelo de datos](../images/entidad-relacion.png)
+
+### Diagrama de componentes
+![Diagrama de componentes](../images/DiagramaComponentes.png)
+
+### Diagrama de despliegue
+![Diagrama de despliegue](../images/DiagramaDespliegue.png)
+
+### Diagrama de flujo de procesos
+![Flujo de procesos](../images/diagrama_flujo_procesos.png)
+
+
+
 ### Stack Tecnológico
 - **Backend**: FastAPI (Python 3.11)
 - **Base de Datos**: PostgreSQL 15
@@ -579,6 +593,10 @@ curl -X POST http://localhost/api/auth/login \
 - **Análisis de código**: Calidad, seguridad, cobertura
 - **Configuración**: `sonar-project.properties`
 - **Integración**: GitHub Actions automático
+
+#### Reporte de Análisis de SonarQube
+![Summary SonarQube](../images/Sonarqube_summary.png)
+![Reporte SonarQube](../images/sonar_report.png)
 
 ### 2. GitHub Actions (CI/CD)
 - **Trigger**: Push a `main` o `develop`, Pull Requests
