@@ -1,9 +1,10 @@
 {
 	"info": {
-		"_postman_id": "desarrollo-sw-nube-api",
+		"_postman_id": "5a0ecb55-875e-4167-b3b8-2b46e44b312b",
 		"name": "Desarrollo SW Nube API",
-		"description": "# API de Competencia de Habilidades de Jugadores\n\n## Descripción\nAPI REST completa desarrollada con **FastAPI** para una plataforma de competencia de habilidades, incluyendo autenticación, gestión de videos y sistema de rankings.\n\n### 🎆 Características Principales\n- 🔐 **Autenticación JWT** - Registro y login seguro\n- 🎥 **Gestión de Videos** - Subida, procesamiento y eliminación\n- 🏆 **Sistema de Rankings** - Clasificación por votos\n- ⚡ **Procesamiento Asíncrono** - Videos procesados con Celery\n- 📊 **API Pública** - Rankings sin autenticación\n- 🛡️ **Seguridad** - Encriptación bcrypt y JWT\n- 🐳 **Contenedorización** - Docker y Docker Compose\n- ✅ **Pruebas** - Suite completa de tests\n\n### 🚀 Quick Start\n1. **Levantar servicios**: `docker-compose up -d`\n2. **Verificar**: `curl http://localhost/`\n3. **Ver docs**: `http://localhost/docs`\n4. **Probar endpoints** en orden: Health Check → Signup → Login → Upload Video → Rankings\n\n### 📊 Endpoints Disponibles\n\n#### 🔐 Autenticación\n- **POST /api/auth/signup** - Registro de usuarios\n- **POST /api/auth/login** - Login y obtención de JWT\n\n#### 🎥 Gestión de Videos (Requiere Auth)\n- **POST /api/videos/upload** - Subir video MP4 (máx 100MB)\n- **GET /api/videos** - Listar videos del usuario\n- **GET /api/videos/{id}** - Detalles de video específico\n- **DELETE /api/videos/{id}** - Eliminar video\n\n#### 🏆 Rankings Públicos\n- **GET /api/public/rankings** - Ranking por votos (con paginación y filtros)\n\n#### 🔍 Utilidades\n- **GET /** - Health check\n\n### 📝 Variables de Entorno\n- `base_url`: URL base de la API (http://localhost)\n- `access_token`: JWT token (se guarda automáticamente)\n- `test_email`: Email del usuario de prueba\n- `test_video_id`: ID del video para pruebas\n\n## 🛠️ Configuración\n\n### Paso 1: Preparar el Entorno\n```bash\n# 1. Clonar el repositorio\ngit clone <repository-url>\ncd desarrollo-sw-nube\n\n# 2. Crear archivo de configuración\ncp .env.example .env\n```\n\n### Paso 2: Variables de Entorno (.env)\n```env\n# Base de datos\nDATABASE_URL=postgresql://postgres:postgres@postgres:5432/desarrollo_sw_nube\nPOSTGRES_DB=desarrollo_sw_nube\nPOSTGRES_USER=postgres\nPOSTGRES_PASSWORD=postgres\n\n# JWT Security\nSECRET_KEY=tu-clave-secreta-de-64-caracteres-aqui\nALGORITHM=HS256\nACCESS_TOKEN_EXPIRE_SECONDS=3600\n\n# Redis/Celery\nREDIS_URL=redis://redis:6379/0\n```\n\n**Generar SECRET_KEY segura:**\n```bash\nopenssl rand -hex 32\n# O\npython -c \"import secrets; print(secrets.token_hex(32))\"\n```\n\n### Paso 3: Levantar Servicios\n```bash\n# Iniciar todos los servicios\ndocker-compose up -d\n\n# Verificar estado\ndocker-compose ps\n\n# Ver logs\ndocker-compose logs -f\n```\n\n### Paso 4: Verificar Instalación\n```bash\n# Health check\ncurl http://localhost/\n# Respuesta: \"Healthcheck\"\n\n# Ver documentación interactiva\nopen http://localhost/docs\n```\n\n## 📚 Guía de Uso\n\n### Flujo Completo de Pruebas\n1. **Health Check** - Verificar que la API funciona\n2. **User Signup** - Crear cuenta de usuario\n3. **User Login** - Obtener token JWT (se guarda automáticamente)\n4. **Upload Video** - Subir video MP4\n5. **List User Videos** - Ver videos subidos (guarda video_id)\n6. **Get Video Details** - Ver detalles y votos\n7. **Public Rankings** - Ver ranking de jugadores\n8. **Delete Video** - Eliminar video (opcional)\n\n### Ejemplos de Uso\n\n#### Registro y Autenticación\n```bash\n# Registro\ncurl -X POST http://localhost/api/auth/signup \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"first_name\": \"Juan\",\n    \"last_name\": \"Pérez\",\n    \"email\": \"juan@example.com\",\n    \"city\": \"Bogotá\",\n    \"country\": \"Colombia\",\n    \"password1\": \"mipassword123\",\n    \"password2\": \"mipassword123\"\n  }'\n\n# Login\ncurl -X POST http://localhost/api/auth/login \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"email\": \"juan@example.com\",\n    \"password\": \"mipassword123\"\n  }'\n```\n\n#### Gestión de Videos\n```bash\n# Subir video\ncurl -X POST http://localhost/api/videos/upload \\\n  -H \"Authorization: Bearer YOUR_TOKEN\" \\\n  -F \"video_file=@video.mp4\" \\\n  -F \"title=Mi video de habilidades\"\n\n# Listar videos\ncurl -H \"Authorization: Bearer YOUR_TOKEN\" \\\n  http://localhost/api/videos\n\n# Ver ranking público\ncurl \"http://localhost/api/public/rankings?limit=10&city=Bogotá\"\n```\n\n## 🔧 Características Técnicas\n\n### Procesamiento de Videos\n1. **Upload** - Usuario sube video MP4 (máx 100MB)\n2. **Validation** - Verificación de formato y tamaño\n3. **Queue** - Tarea encolada en Celery/Redis\n4. **Processing** - Worker procesa con FFmpeg (16:9, logos)\n5. **Complete** - Estado cambia a 'processed'\n\n### Sistema de Rankings\n- **Tiempo real** - Actualización automática\n- **Paginación** - Soporte para grandes volúmenes\n- **Filtros** - Por ciudad (case-insensitive)\n- **Ordenamiento** - Por votos descendente\n\n### Seguridad\n- **JWT Tokens** - Expiran en 1 hora\n- **Bcrypt** - Hash seguro de contraseñas\n- **Autorización** - Solo propietarios acceden a sus videos\n- **Validación** - Pydantic schemas en todos los endpoints\n\n## 🚑 Solución de Problemas\n\n### Error 502 Bad Gateway\n```bash\n# Verificar servicios\ndocker-compose ps\n\n# Reiniciar servicios\ndocker-compose restart\n\n# Ver logs\ndocker-compose logs fastapi\n```\n\n### Videos no se procesan\n```bash\n# Verificar Celery worker\ndocker-compose logs celery_worker\n\n# Verificar Redis\ndocker-compose logs redis\n\n# Reiniciar worker\ndocker-compose restart celery_worker\n```\n\n### Base de datos\n```bash\n# Limpiar y recrear\ndocker-compose down -v\ndocker-compose up -d\n\n# Ver logs de PostgreSQL\ndocker-compose logs postgres\n```\n\n### Puerto ocupado\n```bash\n# Cambiar puerto en docker-compose.yml\nports:\n  - \"8080:80\"  # Usar puerto 8080 en lugar de 80\n```\n\n## 📊 Monitoreo\n\n### Endpoints de Estado\n- **GET /** - Health check general\n- **GET /docs** - Documentación interactiva\n- **GET /redoc** - Documentación alternativa\n\n### Logs Importantes\n```bash\n# Ver todos los logs\ndocker-compose logs -f\n\n# Logs específicos\ndocker-compose logs -f fastapi\ndocker-compose logs -f celery_worker\ndocker-compose logs -f postgres\ndocker-compose logs -f redis\n```",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+		"description": "# API de Competencia de Habilidades de Jugadores\n\n## Descripción\n\nAPI REST completa desarrollada con **FastAPI** para una plataforma de competencia de habilidades, incluyendo autenticación, gestión de videos y sistema de rankings.\n\n### 🎆 Características Principales\n\n- 🔐 **Autenticación JWT** - Registro y login seguro\n    \n- 🎥 **Gestión de Videos** - Subida, procesamiento y eliminación\n    \n- 🏆 **Sistema de Rankings** - Clasificación por votos\n    \n- ⚡ **Procesamiento Asíncrono** - Videos procesados con Celery\n    \n- 📊 **API Pública** - Rankings sin autenticación\n    \n- 🛡️ **Seguridad** - Encriptación bcrypt y JWT\n    \n- 🐳 **Contenedorización** - Docker y Docker Compose\n    \n- ✅ **Pruebas** - Suite completa de tests\n    \n\n### 🚀 Quick Start\n\n1. **Levantar servicios**: `docker-compose up -d`\n    \n2. **Verificar**: `curl http://localhost/`\n    \n3. **Ver docs**: `http://localhost/docs`\n    \n4. **Probar endpoints** en orden: Health Check → Signup → Login → Upload Video → Rankings\n    \n\n### 📊 Endpoints Disponibles\n\n#### 🔐 Autenticación\n\n- **POST /api/auth/signup** - Registro de usuarios\n    \n- **POST /api/auth/login** - Login y obtención de JWT\n    \n\n#### 🎥 Gestión de Videos (Requiere Auth)\n\n- **POST /api/videos/upload** - Subir video MP4 (máx 100MB)\n    \n- **GET /api/videos** - Listar videos del usuario\n    \n- **GET /api/videos/{id}** - Detalles de video específico\n    \n- **DELETE /api/videos/{id}** - Eliminar video\n    \n\n#### 🏆 Rankings Públicos\n\n- **POST /api/public/videos/{video_id}/vote** - Emitir un voto (Requiere Auth)\n    \n- **GET /api/public/videos** - Listar videos publicos\n    \n- **GET /api/public/rankings** - Ranking por votos (con paginación y filtros)\n    \n\n#### 🔍 Utilidades\n\n- **GET /** - Health check\n    \n\n### 📝 Variables de Entorno\n\n- `base_url`: URL base de la API ([http://localhost](http://localhost))\n    \n- `access_token`: JWT token (se guarda automáticamente)\n    \n- `test_email`: Email del usuario de prueba\n    \n- `test_video_id`: ID del video para pruebas\n    \n\n## 🛠️ Configuración\n\n### Paso 1: Preparar el Entorno\n\n``` bash\n# 1. Clonar el repositorio\ngit clone <repository-url>\ncd desarrollo-sw-nube\n# 2. Crear archivo de configuración\ncp .env.example .env\n\n ```\n\n### Paso 2: Variables de Entorno (.env)\n\n``` env\n# Base de datos\nDATABASE_URL=postgresql://postgres:postgres@postgres:5432/desarrollo_sw_nube\nPOSTGRES_DB=desarrollo_sw_nube\nPOSTGRES_USER=postgres\nPOSTGRES_PASSWORD=postgres\n# JWT Security\nSECRET_KEY=tu-clave-secreta-de-64-caracteres-aqui\nALGORITHM=HS256\nACCESS_TOKEN_EXPIRE_SECONDS=3600\n# Redis/Celery\nREDIS_URL=redis://redis:6379/0\n\n ```\n\n**Generar SECRET_KEY segura:**\n\n``` bash\nopenssl rand -hex 32\n# O\npython -c \"import secrets; print(secrets.token_hex(32))\"\n\n ```\n\n### Paso 3: Levantar Servicios\n\n``` bash\n# Iniciar todos los servicios\ndocker-compose up -d\n# Verificar estado\ndocker-compose ps\n# Ver logs\ndocker-compose logs -f\n\n ```\n\n### Paso 4: Verificar Instalación\n\n``` bash\n# Health check\ncurl http://localhost/\n# Respuesta: \"Healthcheck\"\n# Ver documentación interactiva\nopen http://localhost/docs\n\n ```\n\n## 📚 Guía de Uso\n\n### Flujo Completo de Pruebas\n\n1. **Health Check** - Verificar que la API funciona\n    \n2. **User Signup** - Crear cuenta de usuario\n    \n3. **User Login** - Obtener token JWT (se guarda automáticamente)\n    \n4. **Upload Video** - Subir video MP4\n    \n5. **List User Videos** - Ver videos subidos (guarda video_id)\n    \n6. **List Public Videos** - Ver videos en status publico\n    \n7. **Get Video Details** - Ver detalles y votos\n    \n8. **Public Rankings** - Ver ranking de jugadores\n    \n9. **Delete Video** - Eliminar video (opcional)\n    \n\n### Ejemplos de Uso\n\n#### Registro y Autenticación\n\n``` bash\n# Registro\ncurl -X POST http://localhost/api/auth/signup \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"first_name\": \"Juan\",\n    \"last_name\": \"Pérez\",\n    \"email\": \"juan@example.com\",\n    \"city\": \"Bogotá\",\n    \"country\": \"Colombia\",\n    \"password1\": \"mipassword123\",\n    \"password2\": \"mipassword123\"\n  }'\n# Login\ncurl -X POST http://localhost/api/auth/login \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"email\": \"juan@example.com\",\n    \"password\": \"mipassword123\"\n  }'\n\n ```\n\n#### Gestión de Videos\n\n``` bash\n# Subir video\ncurl -X POST http://localhost/api/videos/upload \\\n  -H \"Authorization: Bearer YOUR_TOKEN\" \\\n  -F \"video_file=@video.mp4\" \\\n  -F \"title=Mi video de habilidades\"\n# Listar videos\ncurl -H \"Authorization: Bearer YOUR_TOKEN\" \\\n  http://localhost/api/videos\n# Ver ranking público\ncurl \"http://localhost/api/public/rankings?limit=10&city=Bogotá\"\n\n ```\n\n## 🔧 Características Técnicas\n\n### Procesamiento de Videos\n\n1. **Upload** - Usuario sube video MP4 (máx 100MB)\n    \n2. **Validation** - Verificación de formato y tamaño\n    \n3. **Queue** - Tarea encolada en Celery/Redis\n    \n4. **Processing** - Worker procesa con FFmpeg (16:9, logos)\n    \n5. **Complete** - Estado cambia a 'processed'\n    \n\n### Sistema de Rankings\n\n- **Tiempo real** - Actualización automática\n    \n- **Paginación** - Soporte para grandes volúmenes\n    \n- **Filtros** - Por ciudad (case-insensitive)\n    \n- **Ordenamiento** - Por votos descendente\n    \n\n### Seguridad\n\n- **JWT Tokens** - Expiran en 1 hora\n    \n- **Bcrypt** - Hash seguro de contraseñas\n    \n- **Autorización** - Solo propietarios acceden a sus videos\n    \n- **Validación** - Pydantic schemas en todos los endpoints\n    \n\n## 🚑 Solución de Problemas\n\n### Error 502 Bad Gateway\n\n``` bash\n# Verificar servicios\ndocker-compose ps\n# Reiniciar servicios\ndocker-compose restart\n# Ver logs\ndocker-compose logs fastapi\n\n ```\n\n### Videos no se procesan\n\n``` bash\n# Verificar Celery worker\ndocker-compose logs celery_worker\n# Verificar Redis\ndocker-compose logs redis\n# Reiniciar worker\ndocker-compose restart celery_worker\n\n ```\n\n### Base de datos\n\n``` bash\n# Limpiar y recrear\ndocker-compose down -v\ndocker-compose up -d\n# Ver logs de PostgreSQL\ndocker-compose logs postgres\n\n ```\n\n### Puerto ocupado\n\n``` bash\n# Cambiar puerto en docker-compose.yml\nports:\n  - \"8080:80\"  # Usar puerto 8080 en lugar de 80\n\n ```\n\n## 📊 Monitoreo\n\n### Endpoints de Estado\n\n- **GET /** - Health check general\n    \n- **GET /docs** - Documentación interactiva\n    \n- **GET /redoc** - Documentación alternativa\n    \n\n### Logs Importantes\n\n``` bash\n# Ver todos los logs\ndocker-compose logs -f\n# Logs específicos\ndocker-compose logs -f fastapi\ndocker-compose logs -f celery_worker\ndocker-compose logs -f postgres\ndocker-compose logs -f redis\n\n ```",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "48212366"
 	},
 	"item": [
 		{
@@ -21,7 +22,9 @@
 							"    pm.expect(pm.response.text()).to.include(\"Healthcheck\");",
 							"});"
 						],
-						"type": "text/javascript"
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
 					}
 				}
 			],
@@ -47,8 +50,12 @@
 						"header": [],
 						"url": {
 							"raw": "{{base_url}}/",
-							"host": ["{{base_url}}"],
-							"path": [""]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								""
+							]
 						}
 					},
 					"status": "OK",
@@ -142,8 +149,14 @@
 						},
 						"url": {
 							"raw": "{{base_url}}/api/auth/signup",
-							"host": ["{{base_url}}"],
-							"path": ["api", "auth", "signup"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"signup"
+							]
 						}
 					},
 					"status": "Created",
@@ -174,8 +187,14 @@
 						},
 						"url": {
 							"raw": "{{base_url}}/api/auth/signup",
-							"host": ["{{base_url}}"],
-							"path": ["api", "auth", "signup"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"signup"
+							]
 						}
 					},
 					"status": "Bad Request",
@@ -206,8 +225,14 @@
 						},
 						"url": {
 							"raw": "{{base_url}}/api/auth/signup",
-							"host": ["{{base_url}}"],
-							"path": ["api", "auth", "signup"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"signup"
+							]
 						}
 					},
 					"status": "Bad Request",
@@ -300,8 +325,14 @@
 						},
 						"url": {
 							"raw": "{{base_url}}/api/auth/login",
-							"host": ["{{base_url}}"],
-							"path": ["api", "auth", "login"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"login"
+							]
 						}
 					},
 					"status": "OK",
@@ -332,8 +363,14 @@
 						},
 						"url": {
 							"raw": "{{base_url}}/api/auth/login",
-							"host": ["{{base_url}}"],
-							"path": ["api", "auth", "login"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"login"
+							]
 						}
 					},
 					"status": "Unauthorized",
@@ -364,8 +401,14 @@
 						},
 						"url": {
 							"raw": "{{base_url}}/api/auth/login",
-							"host": ["{{base_url}}"],
-							"path": ["api", "auth", "login"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"login"
+							]
 						}
 					},
 					"status": "Unauthorized",
@@ -429,15 +472,15 @@
 					"formdata": [
 						{
 							"key": "video_file",
+							"description": "Archivo de video en formato MP4, máximo 100MB",
 							"type": "file",
-							"src": [],
-							"description": "Archivo de video en formato MP4, máximo 100MB"
+							"src": []
 						},
 						{
 							"key": "title",
 							"value": "Mi video de habilidades",
-							"type": "text",
-							"description": "Título descriptivo del video"
+							"description": "Título descriptivo del video",
+							"type": "text"
 						}
 					]
 				},
@@ -468,14 +511,28 @@
 						"body": {
 							"mode": "formdata",
 							"formdata": [
-								{"key": "video_file", "type": "file"},
-								{"key": "title", "value": "Mi video de habilidades", "type": "text"}
+								{
+									"key": "video_file",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "title",
+									"value": "Mi video de habilidades",
+									"type": "text"
+								}
 							]
 						},
 						"url": {
 							"raw": "{{base_url}}/api/videos/upload",
-							"host": ["{{base_url}}"],
-							"path": ["api", "videos", "upload"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"videos",
+								"upload"
+							]
 						}
 					},
 					"status": "Created",
@@ -498,14 +555,28 @@
 						"body": {
 							"mode": "formdata",
 							"formdata": [
-								{"key": "video_file", "type": "file"},
-								{"key": "title", "value": "Test Video", "type": "text"}
+								{
+									"key": "video_file",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "title",
+									"value": "Test Video",
+									"type": "text"
+								}
 							]
 						},
 						"url": {
 							"raw": "{{base_url}}/api/videos/upload",
-							"host": ["{{base_url}}"],
-							"path": ["api", "videos", "upload"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"videos",
+								"upload"
+							]
 						}
 					},
 					"status": "Unauthorized",
@@ -533,14 +604,28 @@
 						"body": {
 							"mode": "formdata",
 							"formdata": [
-								{"key": "video_file", "type": "file"},
-								{"key": "title", "value": "Invalid Video", "type": "text"}
+								{
+									"key": "video_file",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "title",
+									"value": "Invalid Video",
+									"type": "text"
+								}
 							]
 						},
 						"url": {
 							"raw": "{{base_url}}/api/videos/upload",
-							"host": ["{{base_url}}"],
-							"path": ["api", "videos", "upload"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"videos",
+								"upload"
+							]
 						}
 					},
 					"status": "Bad Request",
@@ -568,13 +653,23 @@
 						"body": {
 							"mode": "formdata",
 							"formdata": [
-								{"key": "title", "value": "Test Video", "type": "text"}
+								{
+									"key": "title",
+									"value": "Test Video",
+									"type": "text"
+								}
 							]
 						},
 						"url": {
 							"raw": "{{base_url}}/api/videos/upload",
-							"host": ["{{base_url}}"],
-							"path": ["api", "videos", "upload"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"videos",
+								"upload"
+							]
 						}
 					},
 					"status": "Unprocessable Entity",
@@ -651,7 +746,7 @@
 						"videos"
 					]
 				},
-				"description": "**Listar videos del usuario**\n\nObtiene todos los videos subidos por el usuario autenticado, ordenados por fecha de subida (más reciente primero).\n\n### Autenticación requerida\n- Header: `Authorization: Bearer <access_token>`\n\n### Respuestas\n- **200 OK**: Lista de videos obtenida (puede ser array vacío)\n- **401 Unauthorized**: Token faltante o inválido\n\n### Información mostrada\n- ID del video\n- Título\n- Estado (uploaded, processed, public)\n- Fecha de subida\n- Fecha de procesamiento (si aplica)\n- URL del video procesado (si aplica)\n\n### Notas\n- Solo muestra videos del usuario autenticado\n- Ordenados por fecha descendente\n- Incluye videos en todos los estados"
+				"description": "**Listar videos del usuario**\n\nObtiene todos los videos subidos por el usuario autenticado, ordenados por fecha de subida (más reciente primero).\n\n### Autenticación requerida\n\n- Header: `Authorization: Bearer`\n    \n\n### Respuestas\n\n- **200 OK**: Lista de videos obtenida (puede ser array vacío)\n    \n- **401 Unauthorized**: Token faltante o inválido\n    \n\n### Información mostrada\n\n- ID del video\n    \n- Título\n    \n- Estado (uploaded, processed, public)\n    \n- Fecha de subida\n    \n- Fecha de procesamiento (si aplica)\n    \n- URL del video procesado (si aplica)\n    \n\n### Notas\n\n- Solo muestra videos del usuario autenticado\n    \n- Ordenados por fecha descendente\n    \n- Incluye videos en todos los estados"
 			},
 			"response": [
 				{
@@ -666,8 +761,13 @@
 						],
 						"url": {
 							"raw": "{{base_url}}/api/videos",
-							"host": ["{{base_url}}"],
-							"path": ["api", "videos"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"videos"
+							]
 						}
 					},
 					"status": "OK",
@@ -694,8 +794,13 @@
 						],
 						"url": {
 							"raw": "{{base_url}}/api/videos",
-							"host": ["{{base_url}}"],
-							"path": ["api", "videos"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"videos"
+							]
 						}
 					},
 					"status": "OK",
@@ -717,8 +822,13 @@
 						"header": [],
 						"url": {
 							"raw": "{{base_url}}/api/videos",
-							"host": ["{{base_url}}"],
-							"path": ["api", "videos"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"videos"
+							]
 						}
 					},
 					"status": "Unauthorized",
@@ -825,8 +935,14 @@
 						],
 						"url": {
 							"raw": "{{base_url}}/api/videos/1",
-							"host": ["{{base_url}}"],
-							"path": ["api", "videos", "1"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"videos",
+								"1"
+							]
 						}
 					},
 					"status": "OK",
@@ -853,8 +969,14 @@
 						],
 						"url": {
 							"raw": "{{base_url}}/api/videos/999",
-							"host": ["{{base_url}}"],
-							"path": ["api", "videos", "999"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"videos",
+								"999"
+							]
 						}
 					},
 					"status": "Not Found",
@@ -881,8 +1003,14 @@
 						],
 						"url": {
 							"raw": "{{base_url}}/api/videos/1",
-							"host": ["{{base_url}}"],
-							"path": ["api", "videos", "1"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"videos",
+								"1"
+							]
 						}
 					},
 					"status": "Forbidden",
@@ -988,8 +1116,14 @@
 						],
 						"url": {
 							"raw": "{{base_url}}/api/videos/1",
-							"host": ["{{base_url}}"],
-							"path": ["api", "videos", "1"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"videos",
+								"1"
+							]
 						}
 					},
 					"status": "OK",
@@ -1016,8 +1150,14 @@
 						],
 						"url": {
 							"raw": "{{base_url}}/api/videos/999",
-							"host": ["{{base_url}}"],
-							"path": ["api", "videos", "999"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"videos",
+								"999"
+							]
 						}
 					},
 					"status": "Not Found",
@@ -1044,8 +1184,14 @@
 						],
 						"url": {
 							"raw": "{{base_url}}/api/videos/1",
-							"host": ["{{base_url}}"],
-							"path": ["api", "videos", "1"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"videos",
+								"1"
+							]
 						}
 					},
 					"status": "Bad Request",
@@ -1072,8 +1218,14 @@
 						],
 						"url": {
 							"raw": "{{base_url}}/api/videos/1",
-							"host": ["{{base_url}}"],
-							"path": ["api", "videos", "1"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"videos",
+								"1"
+							]
 						}
 					},
 					"status": "Forbidden",
@@ -1087,6 +1239,335 @@
 					],
 					"cookie": [],
 					"body": "{\n  \"detail\": \"You are not authorized\"\n}"
+				}
+			]
+		},
+		{
+			"name": "List Public Videos",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"if (pm.response.code === 200) {\r",
+							"    pm.test(\"Status code is 200\", function () {\r",
+							"        pm.response.to.have.status(200);\r",
+							"    });\r",
+							"    \r",
+							"    pm.test(\"Response is an array\", function () {\r",
+							"        var jsonData = pm.response.json();\r",
+							"        pm.expect(jsonData).to.be.an('array');\r",
+							"    });\r",
+							"    \r",
+							"    if (pm.response.json().length > 0) {\r",
+							"        pm.test(\"Video items have required fields\", function () {\r",
+							"            var jsonData = pm.response.json();\r",
+							"            var firstVideo = jsonData[0];\r",
+							"            pm.expect(firstVideo).to.have.property('id');\r",
+							"            pm.expect(firstVideo).to.have.property('title');\r",
+							"            pm.expect(firstVideo).to.have.property('uploaded_at');\r",
+							"            pm.expect(firstVideo).to.have.property('owner_name');\r",
+							"            pm.expect(firstVideo).to.have.property('owner_city');\r",
+							"        });\r",
+							"        \r",
+							"        // Store first video ID for other tests\r",
+							"        var firstVideo = pm.response.json()[0];\r",
+							"        pm.environment.set('test_video_id', firstVideo.video_id);\r",
+							"    }\r",
+							"} else {\r",
+							"    pm.test(\"Unexpected Error - Internal Server Error\", function () {\r",
+							"        pm.response.to.have.status(500);\r",
+							"    });\r",
+							"}"
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/public/videos/",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"public",
+						"videos",
+						""
+					]
+				},
+				"description": "**Listar videos públicos**\n\nObtiene todos los videos subidos con estado _público_ ordenados por fecha de subida (más reciente primero).\n\n### Respuestas\n\n- **200 OK**: Lista de videos obtenida (puede ser array vacío)\n    \n\n### Información mostrada\n\n- ID del video\n    \n- Título\n    \n- Fecha de subida\n    \n- Fecha de procesamiento\n    \n- URL del video procesado\n    \n- Nombre del propietario del video\n    \n- Ciudad de procedencia del propietario del video\n    \n\n### Características\n\n- ✅ **Público**: No requiere autenticación\n    \n- 📈 **Ordenado**: Por votos descendente\n    \n\n### Estructura de respuesta\n\n``` json\n[\n  {\n    \"id: 1,\n    \"title\": \"Superstar Jump\",\n    \"uploaded_at\": 2025-10-11T00:45:12.345678Z,\n    \"processed_url\": \"https://cdn.example.com/videos/superstar_jump.mp4\",\n    \"owner_name\": \"Juan Pérez\",\n    \"owner_city\": \"Bogotá\"\n  },\n  {\n    \"id\": 2,\n    \"title\": \"Behind-the-Back Crossover Demo\",\n    \"uploaded_at\": \"2025-10-15T19:42:56.238410Z\",\n    \"processed_url\": \"https://cdn.example.com/videos/behind_the_back_crossover.mp4\",\n    \"owner_name\": \"Carlos Rodríguez\",\n    \"owner_city\": \"Cali\"\n  }\n]\n\n ```"
+			},
+			"response": [
+				{
+					"name": "Success - Videos List",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/public/videos/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"public",
+								"videos",
+								""
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": null,
+					"header": null,
+					"cookie": [],
+					"body": "[\r\n  {\r\n    \"id: 1,\r\n    \"title\": \"Superstar Jump\",\r\n    \"uploaded_at\": 2025-10-11T00:45:12.345678Z,\r\n    \"processed_url\": \"https://cdn.example.com/videos/superstar_jump.mp4\",\r\n    \"owner_name\": \"Juan Pérez\",\r\n    \"owner_city\": \"Bogotá\"\r\n  },\r\n  {\r\n    \"id\": 2,\r\n    \"title\": \"Behind-the-Back Crossover Demo\",\r\n    \"uploaded_at\": \"2025-10-15T19:42:56.238410Z\",\r\n    \"processed_url\": \"https://cdn.example.com/videos/behind_the_back_crossover.mp4\",\r\n    \"owner_name\": \"Carlos Rodríguez\",\r\n    \"owner_city\": \"Cali\"\r\n  }\r\n]\r\n"
+				}
+			]
+		},
+		{
+			"name": "Emit Vote",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"if (pm.response.code === 200) {",
+							"    pm.test(\"Status code is 200\", function () {",
+							"        pm.response.to.have.status(200);",
+							"    });",
+							"    ",
+							"    pm.test(\"Response has success message\", function () {",
+							"        var jsonData = pm.response.json();",
+							"        pm.expect(jsonData).to.have.property('message');",
+							"        pm.expect(jsonData.message).to.include('Vote successfully registered');",
+							"    });",
+							"} else if (pm.response.code === 404) {",
+							"    pm.test(\"Video not found - Status code is 404\", function () {",
+							"        pm.response.to.have.status(404);",
+							"    });",
+							"",
+							"    pm.test(\"Response has the detail message\", function(){",
+							"        var jsonData = pm.response.json()",
+							"        pm.expect(jsonData).to.have.property('detail');",
+							"        pm.expect(jsonData.detail).to.include('Video not found');",
+							"    });",
+							"} else if (pm.response.code === 400){",
+							"    pm.test(\"Already voted - Status code is 400 \", function () {",
+							"        pm.response.to.have.status(400)",
+							"    });",
+							"",
+							"    pm.test(\"Response has the detail message\", function(){",
+							"        var jsonData = pm.response.json()",
+							"        pm.expect(jsonData).to.have.property('detail');",
+							"        pm.expect(jsonData.detail).to.include('You have already voted for this video');",
+							"    });",
+							"} else if (pm.response.code === 401){",
+							"    pm.test(\"Unauthorized - Status code is 401\", function () {",
+							"        pm.response.to.have.status(401)",
+							"    });",
+							"",
+							"    pm.test(\"Response has the detail message\", function(){",
+							"        var jsonData = pm.response.json()",
+							"        pm.expect(jsonData).to.have.property('detail');",
+							"    });",
+							"}else if (pm.response.code === 403) {",
+							"    pm.test(\"Forbidden - Status code is 403\", function () {",
+							"        pm.response.to.have.status(403)",
+							"    });",
+							"",
+							"    pm.test(\"Response has the detail message\", function(){",
+							"        var jsonData = pm.response.json()",
+							"        pm.expect(jsonData).to.have.property('detail');",
+							"    });",
+							"}"
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{access_token}}",
+						"description": "JWT token obtenido del login"
+					}
+				],
+				"body": {
+					"mode": "formdata",
+					"formdata": []
+				},
+				"url": {
+					"raw": "{{base_url}}/api/public/videos/{{test_video_id}}/vote",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"public",
+						"videos",
+						"{{test_video_id}}",
+						"vote"
+					]
+				},
+				"description": "**Emitir un voto**\n\nPermite a un usuario autenticado emitir un voto para un video en específico.\n\n### Autenticación requerida\n\n- Header: `Authorization: Bearer`\n    \n\n### Parámetros\n\n- `video_id`: ID del video al que se emite el voto (en la URL)\n    \n\n### Respuestas\n\n- **200**: Voto emitido exitosamente\n    \n- **400**: Voto invalido, el usuario ya emitió un voto por ese video\n    \n- **404**: Video no encontrado\n    \n- **401**: Token inválido\n    \n- **403**: Token faltante"
+			},
+			"response": [
+				{
+					"name": "Success - Video Uploaded",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": []
+						},
+						"url": {
+							"raw": "{{base_url}}/api/public/videos/{{test_video_id}}/vote",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"public",
+								"videos",
+								"{{test_video_id}}",
+								"vote"
+							]
+						}
+					},
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"message\": \"Vote successfully registered\"\n}"
+				},
+				{
+					"name": "Error - Unauthorized",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": []
+						},
+						"url": {
+							"raw": "{{base_url}}/api/videos/upload",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"videos",
+								"upload"
+							]
+						}
+					},
+					"status": "Unauthorized",
+					"code": 401,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"detail\": \"Not authenticated\"\n}"
+				},
+				{
+					"name": "Error - Invalid duplicate vote",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": []
+						},
+						"url": {
+							"raw": "{{base_url}}/api/videos/upload",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"videos",
+								"upload"
+							]
+						}
+					},
+					"code": 400,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"detail\": \"You have already voted for this video\"\n}"
+				},
+				{
+					"name": "Error - Missing video",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": []
+						},
+						"url": {
+							"raw": "{{base_url}}/api/videos/upload",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"videos",
+								"upload"
+							]
+						}
+					},
+					"code": 404,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n  \"detail\": \"Video not found\"\n}"
 				}
 			]
 		},
@@ -1171,7 +1652,7 @@
 						}
 					]
 				},
-				"description": "**Ranking público de jugadores por votos**\n\nMuestra el ranking actual de los jugadores ordenados por número de votos acumulados.\n\n### Parámetros de consulta\n- `page`: Número de página (por defecto 1, mínimo 1)\n- `limit`: Elementos por página (1-100, por defecto 10)\n- `city`: Filtrar por ciudad (opcional, búsqueda insensible a mayúsculas)\n\n### Respuestas\n- **200 OK**: Lista de rankings obtenida\n- **400 Bad Request**: Parámetro inválido en la consulta\n- **422 Unprocessable Entity**: Validación de parámetros fallida\n\n### Características\n- ✅ **Público**: No requiere autenticación\n- 📈 **Ordenado**: Por votos descendente\n- 📋 **Paginado**: Soporte para grandes volúmenes\n- 🏢 **Filtrable**: Por ciudad\n- ⚡ **Optimizado**: Para consultas rápidas\n\n### Ejemplos de uso\n```bash\n# Ranking completo (primera página)\ncurl \"{{base_url}}/api/public/rankings\"\n\n# Segunda página con 5 elementos\ncurl \"{{base_url}}/api/public/rankings?page=2&limit=5\"\n\n# Filtrar por ciudad\ncurl \"{{base_url}}/api/public/rankings?city=Bogotá\"\n```\n\n### Estructura de respuesta\n```json\n[\n  {\n    \"position\": 1,\n    \"username\": \"Juan Pérez\",\n    \"city\": \"Bogotá\",\n    \"votes\": 1530\n  },\n  {\n    \"position\": 2,\n    \"username\": \"Ana García\",\n    \"city\": \"Medellín\",\n    \"votes\": 1495\n  }\n]\n```"
+				"description": "**Ranking público de jugadores por votos**\n\nMuestra el ranking actual de los jugadores ordenados por número de votos acumulados.\n\n### Parámetros de consulta\n\n- `page`: Número de página (por defecto 1, mínimo 1)\n    \n- `limit`: Elementos por página (1-100, por defecto 10)\n    \n- `city`: Filtrar por ciudad (opcional, búsqueda insensible a mayúsculas)\n    \n\n### Respuestas\n\n- **200 OK**: Lista de rankings obtenida\n    \n- **400 Bad Request**: Parámetro inválido en la consulta\n    \n- **422 Unprocessable Entity**: Validación de parámetros fallida\n    \n\n### Características\n\n- ✅ **Público**: No requiere autenticación\n    \n- 📈 **Ordenado**: Por votos descendente\n    \n- 📋 **Paginado**: Soporte para grandes volúmenes\n    \n- 🏢 **Filtrable**: Por ciudad\n    \n- ⚡ **Optimizado**: Para consultas rápidas\n    \n\n### Ejemplos de uso\n\n``` bash\n# Ranking completo (primera página)\ncurl \"{{base_url}}/api/public/rankings\"\n# Segunda página con 5 elementos\ncurl \"{{base_url}}/api/public/rankings?page=2&limit=5\"\n# Filtrar por ciudad\ncurl \"{{base_url}}/api/public/rankings?city=Bogotá\"\n\n ```\n\n### Estructura de respuesta\n\n``` json\n[\n  {\n    \"position\": 1,\n    \"username\": \"Juan Pérez\",\n    \"city\": \"Bogotá\",\n    \"votes\": 1530\n  },\n  {\n    \"position\": 2,\n    \"username\": \"Ana García\",\n    \"city\": \"Medellín\",\n    \"votes\": 1495\n  }\n]\n\n ```"
 			},
 			"response": [
 				{
@@ -1181,11 +1662,23 @@
 						"header": [],
 						"url": {
 							"raw": "{{base_url}}/api/public/rankings?page=1&limit=10",
-							"host": ["{{base_url}}"],
-							"path": ["api", "public", "rankings"],
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"public",
+								"rankings"
+							],
 							"query": [
-								{"key": "page", "value": "1"},
-								{"key": "limit", "value": "10"}
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
 							]
 						}
 					},
@@ -1208,8 +1701,14 @@
 						"header": [],
 						"url": {
 							"raw": "{{base_url}}/api/public/rankings",
-							"host": ["{{base_url}}"],
-							"path": ["api", "public", "rankings"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"public",
+								"rankings"
+							]
 						}
 					},
 					"status": "OK",
@@ -1231,10 +1730,19 @@
 						"header": [],
 						"url": {
 							"raw": "{{base_url}}/api/public/rankings?city=Bogotá",
-							"host": ["{{base_url}}"],
-							"path": ["api", "public", "rankings"],
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"public",
+								"rankings"
+							],
 							"query": [
-								{"key": "city", "value": "Bogotá"}
+								{
+									"key": "city",
+									"value": "Bogotá"
+								}
 							]
 						}
 					},
@@ -1257,11 +1765,23 @@
 						"header": [],
 						"url": {
 							"raw": "{{base_url}}/api/public/rankings?page=0&limit=101",
-							"host": ["{{base_url}}"],
-							"path": ["api", "public", "rankings"],
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"public",
+								"rankings"
+							],
 							"query": [
-								{"key": "page", "value": "0"},
-								{"key": "limit", "value": "101"}
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "limit",
+									"value": "101"
+								}
 							]
 						}
 					},
