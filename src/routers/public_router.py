@@ -119,8 +119,8 @@ def upload_vote(
     current_user: User = Depends(verify_token)
 ):
     # Verificar que el video exista
-    verify_video = db.query(Video).filter(Video.id == video_id).first()
-    if not verify_video:
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     
     # Verificar que el usuario no haya votado aun por el video
@@ -128,7 +128,7 @@ def upload_vote(
     if verify_votes:
         raise HTTPException(
             status_code=400, 
-            detail="You have already vote for this video")
+            detail="You have already voted for this video")
 
     try:
         vote = Vote(
@@ -141,7 +141,7 @@ def upload_vote(
         db.refresh(vote)
 
         return VoteResponse(
-                message="Vote succesfully registered")
+                message="Vote successfully registered")
     
     except IntegrityError:
         db.rollback()
@@ -153,4 +153,4 @@ def upload_vote(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail="Error saving vote")
+            detail="An error ocurred saving your vote")
