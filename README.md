@@ -58,7 +58,10 @@ open http://localhost/docs
 - `DELETE /api/videos/{id}` - Eliminar video
 
 ### 🏆 Rankings Públicos
+- `GET /api/public/videos` - Listar videos en estado público
+- `POST /api/public/videos/{video_id}/vote` - Emitir un voto a un video en específico
 - `GET /api/public/rankings` - Ranking de jugadores por votos
+
 
 ### 🔍 Utilidades
 - `GET /` - Health check

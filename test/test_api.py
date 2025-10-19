@@ -1659,7 +1659,7 @@ class TestVotes:
 
         # Verificar el mensaje de la respuesta
         message = response.json()
-        assert message["message"] == "Vote succesfully registered"
+        assert message["message"] == "Vote successfully registered"
 
     def test_valid_others_video_vote(self, client):
         """Test: Crear un voto con datos validos, voto de un video ajeno"""
@@ -1686,7 +1686,7 @@ class TestVotes:
 
         # Verificar el mensaje de la respuesta
         message = response.json()
-        assert message["message"] == "Vote succesfully registered"
+        assert message["message"] == "Vote successfully registered"
 
     def test_invalid_unathorized_vote(self, client):
         """Test: Votar sin token de autorización"""
@@ -1733,7 +1733,7 @@ class TestVotes:
 
         # Verificar el mensaje
         message = response.json()
-        assert message["detail"] == "You have already vote for this video"
+        assert message["detail"] == "You have already voted for this video"
 
     def test_invalid_vote_none_video(self, client):
         """Test: Crear un voto con datos validos e intentar volver a votar por el mismo video"""
