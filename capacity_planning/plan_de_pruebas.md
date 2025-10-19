@@ -130,7 +130,7 @@ Basado en los resultados obtenidos, se formularán recomendaciones para mejorar 
 * **Optimización de Recursos**: Ajustar los límites de CPU y memoria asignados a los contenedores según la demanda observada.
 ---
 
-## 5. Recomendaciones para Escalar la Solución
+## 6. Recomendaciones para Escalar la Solución
 
 Basado en los resultados obtenidos, se formularán recomendaciones para mejorar la escalabilidad y estabilidad del sistema. Las recomendaciones iniciales a validar son:
 
@@ -2154,3 +2154,141 @@ Aggregated,,3892,2298,6000,25000,47000,132000
 **Fin del Informe del Escenario 1 - Pruebas de Capacidad de Capa Web**
 
 ---
+
+# Escenario 2 — Capacidad de la Capa Worker (Procesamiento Asíncrono)
+
+## 7.1 Objetivo
+Evaluar la capacidad del **worker Celery** para procesar tareas asíncronas de video, midiendo su rendimiento en términos de **videos procesados por minuto**, el **uso de CPU** y la **estabilidad de la cola de tareas**.
+
+---
+
+### 7.2 Estrategia de Implementación
+- Se realizó **bypass de la capa web**, inyectando directamente mensajes en la cola Redis con rutas a videos locales para eliminar el impacto del API Gateway.  
+- Cada tarea simuló el proceso real de **transcodificación, overlay de marca y almacenamiento final** en la carpeta `processed/`.  
+- El monitoreo se efectuó con **Prometheus y Grafana**, recolectando métricas de:
+  - Uso de CPU (%)
+  - Latencia promedio por tarea
+  - Crecimiento y drenado de la cola Celery
+  - E/S de disco durante la ejecución  
+- Todas las pruebas se ejecutaron sobre el mismo entorno Docker Compose del proyecto, garantizando consistencia con el escenario web.
+
+---
+
+### 7.3 Diseño Experimental
+
+| Variable | Valores |
+|-----------|----------|
+| Tamaños de video | 18 MB y 50 MB |
+| Concurrencia (workers/hilos Celery) | 1, 2, 3 y 4 |
+| Tareas inyectadas | 50 para 18 MB / 7 para 50 MB |
+| Métricas recolectadas | Throughput (videos/min), tiempo medio de servicio (s/video), uso de CPU (%) |
+| Herramientas | Python + Celery, Redis, Prometheus, Grafana |
+
+---
+
+### 7.4 Resultados
+
+| Concurrencia | Tamaño Video | Tareas Inyectadas | Tiempo Total (min) | Throughput (videos/min) | Tiempo Medio de Servicio (seg/video) | CPU (%) |
+|--------------|-------------|-------------------|--------------------|--------------------------|---------------------------------------|---------|
+| 1 | 18 MB | 50 | 5,16 | 9,69 | 6,19 | 70,6 |
+| 2 | 18 MB | 50 | 5,20 | 9,62 | 6,24 | 84,4 |
+| 3 | 18 MB | 50 | 5,26 | 9,51 | 6,31 | 93,8 |
+| 4 | 18 MB | 50 | 5,50 | 9,09 | 6,60 | 98,0 |
+| 1 | 50 MB | 7 | 50,11 | 0,14 | 429,51 | 73,0 |
+
+---
+
+### 7.5 Análisis de Desempeño y CPU
+
+- El **mayor rendimiento** se observó con **concurrencia 1–2**, alcanzando un promedio de **9,6 videos/min** con videos de 18 MB.  
+- A partir de **3 workers**, la **CPU alcanzó picos sostenidos del 95–98 %**, sin mejora de throughput, indicando saturación del procesador.  
+- Las gráficas de **Grafana** mostraron claramente:
+  - Incremento casi lineal del uso de CPU hasta el 84 % (2 workers).  
+  - Picos abruptos y sostenidos sobre el 95 % al activar 4 workers, con pequeñas oscilaciones de ±2 % en intervalos de 5 s.  
+  - La cola de tareas (`celery_queue_length`) permaneció estable (< 3 tareas en espera) hasta concurrencia 3, pero comenzó a crecer levemente en concurrencia 4, reflejando retrasos por CPU limitada.  
+- En los videos de **50 MB**, el tiempo de servicio medio aumentó a **429 s por video**, lo que representa una degradación del **≈98 % del throughput** comparado con los de 18 MB.  
+- El cuello de botella principal se confirmó en la CPU, seguido por el I/O de disco durante la lectura y escritura de archivos de gran tamaño.
+
+---
+
+### 7.6 Conclusiones
+
+- **Capacidad nominal:** ≈ **9,6 videos/min** (18 MB, 2 workers).  
+- **Punto de saturación:** **4 workers** (CPU ≈ 98 %, sin ganancia de rendimiento).  
+- **Zona segura de operación:** **2–3 workers** con videos ≤ 20 MB.  
+- **Impacto del tamaño de archivo:** videos grandes (> 50 MB) reducen el throughput en más del **98 %**, aumentando la latencia por I/O y decodificación.  
+- **Bottlenecks detectados:**  
+  - Saturación de CPU en tareas de transcodificación FFmpeg.  
+  - Limitaciones de lectura/escritura en disco al procesar archivos grandes.  
+- **Recomendaciones:**  
+  - Escalar **horizontalmente (más nodos Celery)** en lugar de aumentar hilos por nodo.  
+  - Evaluar instancias con **CPU de mayor frecuencia o soporte GPU**.  
+  - Implementar **compresión previa** o **procesamiento por lotes** para videos grandes.  
+  - Monitorear la métrica `celery_task_runtime_seconds_bucket` para detectar aumentos progresivos de latencia.
+
+---
+
+### 7.7 Evidencias de Observabilidad
+
+Las capturas de **Grafana** incluidas en las carpetas:
+- **Video de 18 MB:** load_testing\scenario_worker\results\video_18mb
+- **Video de 50 MB:** load_testing\scenario_worker\results\video_50mb
+
+Muestran las siguientes visualizaciones:
+- Uso de CPU por worker con picos al 98 %.  
+- Estabilidad de la cola (`celery_queue_length`).  
+- Comportamiento de la métrica `celery_task_runtime_seconds_avg`.  
+
+Estas evidencias confirman el punto de saturación y la zona estable identificada experimentalmente.
+
+### 7.8 Comandos utilizados
+
+Desde la raíz del repo, levantar todos los servicios (API, DB, Redis, worker, observabilidad si aplica):
+
+- Para levantar los servicios:
+``` bash
+docker-compose up -d
+```
+
+- Verificar contenedores corriendo:
+``` bash
+docker ps
+```
+
+- Abrir Grafana / Prometheus:
+
+Grafana: http://localhost:3000
+
+Prometheus: http://localhost:9090
+
+- Ejecutar worker Celery dentro del contenedor (cambiar -c para 2,3,4)
+
+``` bash
+docker-compose exec fastapi celery -A src.core.celery_app worker --loglevel=INFO -c 1
+
+docker-compose exec fastapi celery -A src.core.celery_app worker --loglevel=INFO -c 2
+
+docker-compose exec fastapi celery -A src.core.celery_app worker --loglevel=INFO -c 3
+
+docker-compose exec fastapi celery -A src.core.celery_app worker --loglevel=INFO -c 4
+```
+
+- Inyectar tareas con producer.py desde dentro del contenedor:
+
+``` bash
+docker-compose exec fastapi python /app/load_testing/producer.py 50 video_18mb.mp4 --user 1
+```
+
+- Para 50 MB con 7 tareas:
+
+``` bash
+docker-compose exec fastapi python /app/load_testing/producer.py 7 video_50mb.mp4 --user 1
+```
+
+- Consultar métricas en Prometheus o ver dashboards en Grafana. 
+
+- Al terminar, apagar servicios:
+
+``` bash
+docker-compose down
+```
