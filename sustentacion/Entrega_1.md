@@ -10,4 +10,4 @@
 
 ## Video de Sustentación
 
-🎥 **[Enlace al Video de Sustentación - Próximamente]**
+🎥 **[Enlace al Video de Sustentación](https://uniandes-my.sharepoint.com/:v:/g/personal/sj_fuentes_uniandes_edu_co/EeZDP4LR-YlPq9gNrLv4y4oBcDUuhFS8kC0PJyhL7Pgb4g?nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJPbmVEcml2ZUZvckJ1c2luZXNzIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXciLCJyZWZlcnJhbFZpZXciOiJNeUZpbGVzTGlua0NvcHkifX0&e=vHyxIU)**
