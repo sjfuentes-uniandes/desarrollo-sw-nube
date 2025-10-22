@@ -85,6 +85,7 @@ def process_video_task(self, video_id: int):
         ]
         
         # Ejecutar FFmpeg
+        print(f"[DEBUG] Ejecutando comando: {' '.join(ffmpeg_command)}")
         result = subprocess.run(
             ffmpeg_command,
             capture_output=True,
@@ -92,8 +93,12 @@ def process_video_task(self, video_id: int):
             timeout=1800  # 30 minutos timeout
         )
         
+        print(f"[DEBUG] FFmpeg return code: {result.returncode}")
+        print(f"[DEBUG] FFmpeg stdout: {result.stdout}")
+        print(f"[DEBUG] FFmpeg stderr: {result.stderr}")
+        
         if result.returncode != 0:
-            raise Exception(f"Error en FFmpeg: {result.stderr}")
+            raise Exception(f"Error en FFmpeg (code {result.returncode}): {result.stderr[:500]}")
         
         # PASO 2: Agregar logo ANB (simulado por ahora)
         # TODO: Implementar overlay de logo cuando esté disponible
