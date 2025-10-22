@@ -1,0 +1,25 @@
+version: '3.8'
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  worker:
+    build: .
+    volumes:
+      - /home/ubuntu/app/uploads:/app/uploads
+      - /home/ubuntu/app/processed:/app/processed
+    environment:
+      - .env
+    command: celery -A src.core.celery_app worker --loglevel=info
+    depends_on:
+      - redis
+    restart: unless-stopped
+    
