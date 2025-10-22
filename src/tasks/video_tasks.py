@@ -58,11 +58,11 @@ def process_video_task(self, video_id: int):
             return {"success": False, "error": f"Archivo no encontrado: {input_path}"}
         
         output_filename = f"processed_{os.path.basename(input_path)}"
-        output_path = os.path.join("processed", output_filename)
+        output_path = os.path.join("/home/ubuntu/app/processed", output_filename)
         print(f"[DEBUG] Archivo de salida: {output_path}")
         
         # Asegurar que existe el directorio processed
-        os.makedirs("processed", exist_ok=True)
+        os.makedirs("/home/ubuntu/app/processed", exist_ok=True)
         
         # PASO 1: Procesar video con FFmpeg
         # Comandos FFmpeg para:
@@ -74,7 +74,8 @@ def process_video_task(self, video_id: int):
             '-i', input_path,
             '-vf', 'scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2',
             '-c:v', 'libx264',
-            '-preset', 'medium',
+            '-preset', 'faster',  # Más rápido para usar más CPU
+            '-threads', '0',      # Usar todos los threads disponibles
             '-crf', '23',
             '-c:a', 'aac',
             '-b:a', '128k',
