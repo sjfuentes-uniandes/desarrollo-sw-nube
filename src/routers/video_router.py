@@ -21,7 +21,7 @@ from typing import List
 video_router = APIRouter(tags=["Videos"])
 
 # Configuración de directorios
-UPLOAD_DIR = Path("/app/uploads")
+UPLOAD_DIR = Path(os.getenv("UPLOADS_DIR", "/app/uploads"))
 UPLOAD_DIR.mkdir(exist_ok=True)
 
 # Constantes
