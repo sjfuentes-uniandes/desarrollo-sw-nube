@@ -16,7 +16,7 @@ services:
     volumes:
       - /home/ubuntu/app/uploads:/app/uploads
       - /home/ubuntu/app/processed:/app/processed
-    environment:
+    env_file:
       - .env
     command: celery -A src.core.celery_app worker --loglevel=info
     depends_on:

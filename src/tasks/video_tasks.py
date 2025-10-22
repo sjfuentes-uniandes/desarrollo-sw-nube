@@ -51,8 +51,15 @@ def process_video_task(self, video_id: int):
         
         # Rutas de archivos
         input_path = video.original_url
+        print(f"[DEBUG] Procesando video {video_id}: {input_path}")
+        print(f"[DEBUG] Archivo existe: {os.path.exists(input_path)}")
+        
+        if not os.path.exists(input_path):
+            return {"success": False, "error": f"Archivo no encontrado: {input_path}"}
+        
         output_filename = f"processed_{os.path.basename(input_path)}"
         output_path = os.path.join("processed", output_filename)
+        print(f"[DEBUG] Archivo de salida: {output_path}")
         
         # Asegurar que existe el directorio processed
         os.makedirs("processed", exist_ok=True)
