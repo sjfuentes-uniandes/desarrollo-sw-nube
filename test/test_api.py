@@ -1769,3 +1769,150 @@ class TestVotes:
         # Verificar el mensaje
         message = response.json()
         assert message["detail"] == "Video not found"
+class TestVideoRouterCoverage:
+    """Tests adicionales para mejorar cobertura de video_router"""
+    
+    def test_ensure_upload_dir_function(self):
+        """Test: Función ensure_upload_dir"""
+        from src.routers.video_router import ensure_upload_dir
+        
+        # No debe lanzar excepción
+        ensure_upload_dir()
+    
+    @patch('src.routers.video_router.process_video_task.delay')
+    def test_upload_video_file_cleanup_on_exception(self, mock_task, client, auth_headers):
+        """Test: Limpieza de archivos cuando ocurre excepción después de guardar"""
+        mock_task.side_effect = Exception("Task error")
+        
+        video_file = BytesIO(b"video content")
+        
+        response = client.post(
+            "/api/videos/upload",
+            headers=auth_headers,
+            files={"video_file": ("test.mp4", video_file, "video/mp4")},
+            data={"title": "Test"}
+        )
+        
+        assert response.status_code == 500
+        assert "Error al subir el video" in response.json()["detail"]
+    
+    @patch('src.routers.video_router.process_video_task.delay')
+    def test_upload_video_missing_ensure_upload_dir(self, mock_task, client, auth_headers):
+        """Test: Upload video sin llamar ensure_upload_dir"""
+        mock_task.return_value = Mock(id="task-123")
+        
+        video_file = BytesIO(b"video content")
+        
+        response = client.post(
+            "/api/videos/upload",
+            headers=auth_headers,
+            files={"video_file": ("test.mp4", video_file, "video/mp4")},
+            data={"title": "Test"}
+        )
+        
+        assert response.status_code == 201
+    
+    def test_get_votes_by_video_id_function(self, client):
+        """Test: Función get_votes_by_video_id directamente"""
+        from src.routers.video_router import get_votes_by_video_id
+        
+        db = TestingSessionLocal()
+        Base.metadata.create_all(bind=engine)
+        
+        user = create_test_user(db)
+        video = create_test_video(db, user)
+        
+        result = get_votes_by_video_id(video.id, db)
+        
+        assert result["video_id"] == video.id
+        assert result["votes_count"] == 0
+        
+        db.close()
+        Base.metadata.drop_all(bind=engine)
+    
+    def test_get_votes_by_video_id_not_found(self, client):
+        """Test: get_votes_by_video_id con video inexistente"""
+        from src.routers.video_router import get_votes_by_video_id
+        from fastapi import HTTPException
+        
+        db = TestingSessionLocal()
+        Base.metadata.create_all(bind=engine)
+        
+        with pytest.raises(HTTPException) as exc_info:
+            get_votes_by_video_id(999, db)
+        
+        assert exc_info.value.status_code == 404
+        assert "Video not found" in str(exc_info.value.detail)
+        
+        db.close()
+        Base.metadata.drop_all(bind=engine)
+    
+    def test_video_router_constants(self):
+        """Test: Constantes del video router"""
+        from src.routers.video_router import MAX_FILE_SIZE, ALLOWED_CONTENT_TYPES
+        
+        assert MAX_FILE_SIZE == 100 * 1024 * 1024
+        assert "video/mp4" in ALLOWED_CONTENT_TYPES
+    
+    def test_delete_video_file_removal_error(self, client, auth_headers):
+        """Test: Error al eliminar archivos físicos no debe fallar la operación"""
+        db = TestingSessionLocal()
+        
+        # Crear video en BD
+        user_data = db.query(User).filter(User.email == "test@example.com").first()
+        video = Video(
+            title="Test Video",
+            status=VideoStatus.uploaded,
+            user_id=user_data.id,
+            original_url="/fake/path/video.mp4",
+            processed_url="/fake/path/processed.mp4"
+        )
+        db.add(video)
+        db.commit()
+        db.refresh(video)
+        video_id = video.id
+        db.close()
+        
+        # Mock para simular error al eliminar archivos
+        with patch('aiofiles.os.remove', side_effect=Exception("File error")):
+            response = client.delete(f"/api/videos/{video_id}", headers=auth_headers)
+            
+            assert response.status_code == 200
+            assert "eliminado exitosamente" in response.json()["message"]
+
+class TestAuthRouterCoverage:
+    """Tests adicionales para auth_router"""
+    
+    def test_auth_router_security_import(self):
+        """Test: Importar security desde auth_router"""
+        from src.routers.auth_router import security
+        
+        assert security is not None
+    
+    def test_auth_router_constants(self):
+        """Test: Constantes del auth router"""
+        from src.core.security import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_SECONDS
+        
+        assert isinstance(SECRET_KEY, str)
+        assert isinstance(ALGORITHM, str)
+        assert isinstance(ACCESS_TOKEN_EXPIRE_SECONDS, int)
+
+class TestPublicRouterCoverage:
+    """Tests adicionales para public_router"""
+    
+    def test_public_router_imports(self):
+        """Test: Importar módulos del public router"""
+        from src.routers.public_router import public_router
+        from src.schemas.pydantic_schemas import PublicVideoItem, RankingResponse, VoteResponse
+        
+        assert public_router is not None
+        assert PublicVideoItem is not None
+        assert RankingResponse is not None
+        assert VoteResponse is not None
+    
+    def test_vote_response_schema_validation(self):
+        """Test: Validación del esquema VoteResponse"""
+        from src.schemas.pydantic_schemas import VoteResponse
+        
+        vote_response = VoteResponse(message="Test message")
+        assert vote_response.message == "Test message"

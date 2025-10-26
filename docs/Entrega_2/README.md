@@ -6,7 +6,6 @@
 3. [Cambio realizados](#Cambios-Realizados)
 3. [Pruebas de carga](#Pruebas-de-Capacidad)
 4. [Integraciones](#integraciones)
-5. [Sustentación](#sustentación)
 
 
 ## Arquitectura y Tecnologías
