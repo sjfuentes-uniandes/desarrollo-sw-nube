@@ -1156,7 +1156,8 @@ class TestProcessVideoTask:
     @patch('src.tasks.video_tasks.SessionLocal')
     @patch('src.tasks.video_tasks.subprocess.run')
     @patch('src.tasks.video_tasks.os.makedirs')
-    def test_process_video_success(self, mock_makedirs, mock_subprocess, mock_session_local):
+    @patch('src.tasks.video_tasks.os.path.exists', return_value=True)
+    def test_process_video_success(self, mock_exists, mock_makedirs, mock_subprocess, mock_session_local):
         """Test: Procesamiento exitoso de video"""
         # Setup mock de base de datos
         mock_db = Mock()
@@ -1182,7 +1183,7 @@ class TestProcessVideoTask:
         assert "Video procesado exitosamente" in result["message"]
         
         # Verificar que se creó el directorio processed
-        mock_makedirs.assert_called_once_with("processed", exist_ok=True)
+        mock_makedirs.assert_called_once_with("./processed", exist_ok=True)
         
         # Verificar que se actualizó el estado del video
         assert mock_video.status == VideoStatus.processed
@@ -1210,7 +1211,8 @@ class TestProcessVideoTask:
     @patch('src.tasks.video_tasks.SessionLocal')
     @patch('src.tasks.video_tasks.subprocess.run')
     @patch('src.tasks.video_tasks.os.makedirs')
-    def test_process_video_ffmpeg_error(self, mock_makedirs, mock_subprocess, mock_session_local):
+    @patch('src.tasks.video_tasks.os.path.exists', return_value=True)
+    def test_process_video_ffmpeg_error(self, mock_exists, mock_makedirs, mock_subprocess, mock_session_local):
         """Test: Error en el procesamiento de FFmpeg"""
         mock_db = Mock()
         mock_session_local.return_value = mock_db
@@ -1235,7 +1237,8 @@ class TestProcessVideoTask:
     @patch('src.tasks.video_tasks.SessionLocal')
     @patch('src.tasks.video_tasks.subprocess.run')
     @patch('src.tasks.video_tasks.os.makedirs')
-    def test_process_video_ffmpeg_command_structure(self, mock_makedirs, mock_subprocess, mock_session_local):
+    @patch('src.tasks.video_tasks.os.path.exists', return_value=True)
+    def test_process_video_ffmpeg_command_structure(self, mock_exists, mock_makedirs, mock_subprocess, mock_session_local):
         """Test: Verificar la estructura del comando FFmpeg"""
         mock_db = Mock()
         mock_session_local.return_value = mock_db
@@ -1266,7 +1269,8 @@ class TestProcessVideoTask:
     @patch('src.tasks.video_tasks.SessionLocal')
     @patch('src.tasks.video_tasks.subprocess.run')
     @patch('src.tasks.video_tasks.os.makedirs')
-    def test_process_video_timeout_parameter(self, mock_makedirs, mock_subprocess, mock_session_local):
+    @patch('src.tasks.video_tasks.os.path.exists', return_value=True)
+    def test_process_video_timeout_parameter(self, mock_exists, mock_makedirs, mock_subprocess, mock_session_local):
         """Test: Verificar que subprocess tiene timeout de 30 minutos"""
         mock_db = Mock()
         mock_session_local.return_value = mock_db
@@ -1287,7 +1291,8 @@ class TestProcessVideoTask:
     @patch('src.tasks.video_tasks.SessionLocal')
     @patch('src.tasks.video_tasks.subprocess.run')
     @patch('src.tasks.video_tasks.os.makedirs')
-    def test_process_video_creates_processed_directory(self, mock_makedirs, mock_subprocess, mock_session_local):
+    @patch('src.tasks.video_tasks.os.path.exists', return_value=True)
+    def test_process_video_creates_processed_directory(self, mock_exists, mock_makedirs, mock_subprocess, mock_session_local):
         """Test: Verifica que se crea el directorio 'processed'"""
         mock_db = Mock()
         mock_session_local.return_value = mock_db
@@ -1301,12 +1306,13 @@ class TestProcessVideoTask:
         
         process_video_task(1)
         
-        mock_makedirs.assert_called_once_with("processed", exist_ok=True)
+        mock_makedirs.assert_called_once_with("./processed", exist_ok=True)
     
     @patch('src.tasks.video_tasks.SessionLocal')
     @patch('src.tasks.video_tasks.subprocess.run')
     @patch('src.tasks.video_tasks.os.makedirs')
-    def test_process_video_output_filename_format(self, mock_makedirs, mock_subprocess, mock_session_local):
+    @patch('src.tasks.video_tasks.os.path.exists', return_value=True)
+    def test_process_video_output_filename_format(self, mock_exists, mock_makedirs, mock_subprocess, mock_session_local):
         """Test: Verificar formato del nombre de archivo procesado"""
         mock_db = Mock()
         mock_session_local.return_value = mock_db
@@ -1327,7 +1333,8 @@ class TestProcessVideoTask:
     @patch('src.tasks.video_tasks.SessionLocal')
     @patch('src.tasks.video_tasks.subprocess.run')
     @patch('src.tasks.video_tasks.os.makedirs')
-    def test_process_video_updates_processed_at_timestamp(self, mock_makedirs, mock_subprocess, mock_session_local):
+    @patch('src.tasks.video_tasks.os.path.exists', return_value=True)
+    def test_process_video_updates_processed_at_timestamp(self, mock_exists, mock_makedirs, mock_subprocess, mock_session_local):
         """Test: Verificar que se actualiza processed_at"""
         mock_db = Mock()
         mock_session_local.return_value = mock_db
@@ -1349,7 +1356,8 @@ class TestProcessVideoTask:
     @patch('src.tasks.video_tasks.SessionLocal')
     @patch('src.tasks.video_tasks.subprocess.run')
     @patch('src.tasks.video_tasks.os.makedirs')
-    def test_process_video_exception_handling(self, mock_makedirs, mock_subprocess, mock_session_local):
+    @patch('src.tasks.video_tasks.os.path.exists', return_value=True)
+    def test_process_video_exception_handling(self, mock_exists, mock_makedirs, mock_subprocess, mock_session_local):
         """Test: Manejo de excepciones generales"""
         mock_db = Mock()
         mock_session_local.return_value = mock_db
@@ -1372,7 +1380,8 @@ class TestProcessVideoTask:
     @patch('src.tasks.video_tasks.SessionLocal')
     @patch('src.tasks.video_tasks.subprocess.run')
     @patch('src.tasks.video_tasks.os.makedirs')
-    def test_process_video_database_commit_and_refresh(self, mock_makedirs, mock_subprocess, mock_session_local):
+    @patch('src.tasks.video_tasks.os.path.exists', return_value=True)
+    def test_process_video_database_commit_and_refresh(self, mock_exists, mock_makedirs, mock_subprocess, mock_session_local):
         """Test: Verificar commit y refresh de la base de datos"""
         mock_db = Mock()
         mock_session_local.return_value = mock_db
@@ -1393,7 +1402,8 @@ class TestProcessVideoTask:
     @patch('src.tasks.video_tasks.SessionLocal')
     @patch('src.tasks.video_tasks.subprocess.run')
     @patch('src.tasks.video_tasks.os.makedirs')
-    def test_process_video_closes_database_session(self, mock_makedirs, mock_subprocess, mock_session_local):
+    @patch('src.tasks.video_tasks.os.path.exists', return_value=True)
+    def test_process_video_closes_database_session(self, mock_exists, mock_makedirs, mock_subprocess, mock_session_local):
         """Test: Verificar que se cierra la sesión de BD"""
         mock_db = Mock()
         mock_session_local.return_value = mock_db
@@ -1413,7 +1423,8 @@ class TestProcessVideoTask:
     @patch('src.tasks.video_tasks.SessionLocal')
     @patch('src.tasks.video_tasks.subprocess.run')
     @patch('src.tasks.video_tasks.os.makedirs')
-    def test_process_video_with_special_characters_in_filename(self, mock_makedirs, mock_subprocess, mock_session_local):
+    @patch('src.tasks.video_tasks.os.path.exists', return_value=True)
+    def test_process_video_with_special_characters_in_filename(self, mock_exists, mock_makedirs, mock_subprocess, mock_session_local):
         """Test: Manejar nombres de archivo con caracteres especiales"""
         mock_db = Mock()
         mock_session_local.return_value = mock_db
@@ -1432,7 +1443,8 @@ class TestProcessVideoTask:
     @patch('src.tasks.video_tasks.SessionLocal')
     @patch('src.tasks.video_tasks.subprocess.run')
     @patch('src.tasks.video_tasks.os.makedirs')
-    def test_process_video_ffmpeg_capture_output_enabled(self, mock_makedirs, mock_subprocess, mock_session_local):
+    @patch('src.tasks.video_tasks.os.path.exists', return_value=True)
+    def test_process_video_ffmpeg_capture_output_enabled(self, mock_exists, mock_makedirs, mock_subprocess, mock_session_local):
         """Test: Verificar que FFmpeg captura output"""
         mock_db = Mock()
         mock_session_local.return_value = mock_db
@@ -1454,7 +1466,8 @@ class TestProcessVideoTask:
     @patch('src.tasks.video_tasks.SessionLocal')
     @patch('src.tasks.video_tasks.subprocess.run')
     @patch('src.tasks.video_tasks.os.makedirs')
-    def test_process_video_result_contains_all_fields(self, mock_makedirs, mock_subprocess, mock_session_local):
+    @patch('src.tasks.video_tasks.os.path.exists', return_value=True)
+    def test_process_video_result_contains_all_fields(self, mock_exists, mock_makedirs, mock_subprocess, mock_session_local):
         """Test: El resultado contiene todos los campos esperados"""
         mock_db = Mock()
         mock_session_local.return_value = mock_db
