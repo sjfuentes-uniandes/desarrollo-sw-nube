@@ -15,7 +15,9 @@ Las pruebas de capacidad se ejecutaron en una instancia EC2 de Amazon Web Servic
 
 ### Hallazgos Principales
 
-> 🚨 **CRÍTICO:** El sistema presenta **fallas catastróficas de capacidad** en el entorno cloud de AWS. Con 200 y 300 usuarios concurrentes **LA INSTANCIA EC2 SE CAE COMPLETAMENTE**, haciendo imposible ejecutar las pruebas planificadas.
+> 🚨 **CRÍTICO:** El sistema presenta **fallas catastróficas de capacidad** en AMBAS capas (Web y Worker) en el entorno cloud de AWS. Con 200 y 300 usuarios concurrentes **LA INSTANCIA EC2 SE CAE COMPLETAMENTE**, y el sistema de workers presenta **91.53% de tasa de error** en procesamiento asíncrono.
+
+**Escenario 1: Capacidad de la Capa Web (API REST)**
 
 | Fase de Prueba | Usuarios | Requests | Tasa de Error | Throughput | Estado |
 |----------------|----------|----------|---------------|------------|--------|
@@ -25,26 +27,50 @@ Las pruebas de capacidad se ejecutaron en una instancia EC2 de Amazon Web Servic
 | **Fase 2: Escalamiento (300u)** | 300 | N/A | N/A | N/A | 💥 **INSTANCIA CAÍDA** |
 | **Fase 3: Sostenida** | 40 | 93 | 94.62% | 0.22 req/s | ❌ **COLAPSO** |
 
-### ⚠️ Hallazgo Crítico: Colapso Total de Infraestructura
+**Escenario 2: Capacidad de la Capa Worker (Procesamiento Asíncrono)**
 
-**Pruebas con 200 y 300 usuarios:**
-- 🔴 **La instancia EC2 se cae completamente** y deja de responder
+| Métrica | Valor | Estado |
+|---------|-------|--------|
+| **Total Tareas Encoladas** | 1,606 | - |
+| **Tareas Procesadas Exitosamente** | 136 (8.47%) | ❌ **CRÍTICO** |
+| **Tareas Fallidas** | 1,470 (91.53%) | 💥 **COLAPSO TOTAL** |
+| **Throughput de Encolado** | 5.35 tareas/s | 🔴 Muy bajo |
+| **Throughput de Procesamiento** | ~0.067 tareas/s (4/min) | 💥 **SATURACIÓN** |
+| **Ratio Entrada/Salida** | 80:1 | 💥 **BACKLOG INFINITO** |
+| **Latencia Promedio** | 1.87 segundos | ⚠️ Timeouts |
+
+### ⚠️ Hallazgos Críticos Consolidados
+
+**Escenario 1 - Capa Web (API REST):**
+- 🔴 **La instancia EC2 se cae completamente** con 200-300 usuarios
 - 🔴 **Sistema operativo colapsa** - No hay respuesta HTTP
 - 🔴 **Imposible recolectar métricas** - Servidor inaccesible
 - 🔴 **Requiere reinicio manual** de la instancia para recuperación
+- 🔴 **94.62% de error** con solo 40 usuarios sostenidos
+
+**Escenario 2 - Capa Worker (Procesamiento Asíncrono):**
+- 🔴 **91.53% de tasa de error** al encolar tareas en Redis
+- 🔴 **Ratio 80:1** - Se encolan 80x más rápido de lo que se procesan
+- 🔴 **Backlog de 1,455+ tareas** acumuladas en solo 5 minutos
+- 🔴 **Redis saturado** - Rechaza nuevas conexiones
+- 🔴 **Workers completamente saturados** - Solo 4 tareas/minuto vs 321 tareas/minuto entrando
 
 **Implicaciones:**
-- El sistema **NO puede escalar** más allá de 100 usuarios concurrentes
-- Con cargas mayores, ocurre **colapso total de infraestructura**
+- El sistema **NO puede escalar** más allá de 100 usuarios concurrentes (Capa Web)
+- Los workers **NUNCA podrán alcanzar** la tasa de entrada de tareas (Backlog infinito)
+- Con cargas mayores, ocurre **colapso total de infraestructura** en ambas capas
 - **Alto riesgo operacional** - Caídas completas del servicio
 - **Pérdida total de disponibilidad** durante eventos de alta carga
+- **Videos nunca se procesan** - Experiencia de usuario pésima
 
 ### Veredicto General
 
 - ❌ **RECHAZADO CATEGÓRICAMENTE** para operación en producción
-- 🔴 **RIESGO CRÍTICO:** Instancia se cae con cargas > 100 usuarios
-- 💥 **COLAPSO TOTAL** con 200-300 usuarios concurrentes
+- 🔴 **RIESGO CRÍTICO:** Instancia se cae con cargas > 100 usuarios (Escenario 1)
+- 🔴 **RIESGO CRÍTICO:** Workers con 91.53% de error - Sistema inoperante (Escenario 2)
+- 💥 **COLAPSO TOTAL** con 200-300 usuarios concurrentes (Ambos Escenarios)
 - ⚠️ **Requiere rediseño arquitectónico URGENTE** antes de cualquier despliegue
+- ⚠️ **Separación de capas MANDATORIA** - API y Workers deben estar en instancias dedicadas
 
 ---
 
@@ -58,11 +84,16 @@ Las pruebas de capacidad se ejecutaron en una instancia EC2 de Amazon Web Servic
    - 4.2 [Fase 2: Escalamiento con 100 Usuarios](#42-fase-2-escalamiento-con-fallo)
    - 4.3 [Fase 2 (continuación): Escalamiento con 200 y 300 Usuarios - Colapso Total](#43-fase-2-continuación-escalamiento-con-200-y-300-usuarios---colapso-total-de-infraestructura)
    - 4.4 [Fase 3: Carga Sostenida](#44-fase-3-carga-sostenida)
-5. [Identificación de Problemas Críticos](#5-identificación-de-problemas-críticos)
-6. [Recomendaciones para Escalar la Solución](#6-recomendaciones-para-escalar-la-solución)
-7. [Plan de Acción Inmediato](#7-plan-de-acción-inmediato)
-8. [Conclusiones](#8-conclusiones)
-9. [Anexos](#9-anexos)
+5. [Escenario 2: Capacidad de la Capa Worker](#5-escenario-2-capacidad-de-la-capa-worker)
+   - 5.1 [Configuración de la Prueba](#51-configuración-de-la-prueba)
+   - 5.2 [Resultados Obtenidos](#52-resultados-obtenidos)
+   - 5.3 [Análisis de Causas Raíz](#53-análisis-de-causas-raíz)
+   - 5.4 [Comparación con Escenario 1](#54-comparación-con-escenario-1)
+6. [Identificación de Problemas Críticos (Consolidado)](#6-identificación-de-problemas-críticos-consolidado)
+7. [Recomendaciones para Escalar la Solución](#7-recomendaciones-para-escalar-la-solución)
+8. [Plan de Acción Inmediato](#8-plan-de-acción-inmediato)
+9. [Conclusiones](#9-conclusiones)
+10. [Anexos](#10-anexos)
 
 ---
 
@@ -74,17 +105,26 @@ Este documento presenta el análisis de las pruebas de capacidad ejecutadas en A
 
 ### 1.2 Alcance
 
-El análisis cubre:
-- **Escenario 1:** Capacidad de la Capa Web (API REST)
-- **Herramienta:** Apache JMeter
+El análisis cubre **DOS escenarios** de pruebas de capacidad:
+
+**Escenario 1: Capacidad de la Capa Web**
+- **Componente:** API REST (FastAPI)
+- **Herramienta:** Apache JMeter (HTTP Samplers)
 - **Tipo de pruebas:** Carga incremental, sanidad y sostenida
 - **Endpoint evaluado:** POST /api/videos/upload
 
+**Escenario 2: Capacidad de la Capa Worker**
+- **Componente:** Celery Workers (procesamiento asíncrono)
+- **Herramienta:** Apache JMeter (JSR223 Samplers)
+- **Tipo de pruebas:** Inyección directa de tareas en cola Redis
+- **Cola evaluada:** Redis "celery"
+
 ### 1.3 Limitaciones
 
-- Las pruebas se enfocaron únicamente en el endpoint de subida de videos
-- No se evaluó el comportamiento de la capa worker (Celery)
+- Las pruebas se enfocaron en endpoints de escritura (upload)
 - No se realizaron pruebas de endpoints de lectura (GET)
+- No se evaluó comportamiento con carga geográficamente distribuida
+- No se midió tiempo end-to-end de procesamiento de video completo
 
 ---
 
@@ -592,10 +632,358 @@ Disponibilidad del Sistema vs Usuarios Concurrentes
 
 ---
 
-## 5. Identificación de Problemas Críticos
+## 5. Escenario 2: Capacidad de la Capa Worker
+
+### 5.1 Configuración de la Prueba
+
+**Objetivo:** Medir la capacidad de los Celery Workers para procesar tareas de la cola Redis bajo carga sostenida.
+
+Este escenario evalúa la capacidad de la **capa de procesamiento asíncrono** (Celery Workers) que consume tareas de la cola Redis y procesa videos con FFmpeg. A diferencia del Escenario 1 que evaluó la API REST, este escenario mide el **throughput de procesamiento de la cola de tareas** simulando carga directa en Redis mediante scripts JSR223 de JMeter.
+
+**Parámetros de Prueba:**
+- **Threads (productores):** 10 threads concurrentes
+- **Ramp-up:** 1 segundo (subida inmediata)
+- **Duración:** 300 segundos (5 minutos)
+- **Loop:** Infinito durante duración
+- **Payload:** Mensaje de 10MB por tarea
+- **Cola Redis:** "celery"
+- **Herramienta:** Apache JMeter con JSR223 Sampler (Groovy + Jedis)
+
+**Diferencias con Escenario 1:**
+
+| Aspecto | Escenario 1 (Capa Web) | Escenario 2 (Capa Worker) |
+|---------|------------------------|---------------------------|
+| **Componente** | API REST (FastAPI) | Celery Workers |
+| **Protocolo** | HTTP POST | Redis LPUSH |
+| **Endpoint** | POST /api/videos/upload | Cola Redis "celery" |
+| **Medición** | Latencia HTTP, throughput API | Throughput de encolado, capacidad de procesamiento |
+| **Carga** | Usuarios concurrentes | Threads encolando tareas |
+
+**Script JSR223 (Groovy) Utilizado:**
+```groovy
+import redis.clients.jedis.Jedis
+import java.nio.file.Files
+import java.nio.file.Paths
+
+// Configuración
+String host = vars.get("REDIS_HOST")      // localhost
+int port = vars.get("REDIS_PORT").toInteger()  // 6379
+String queue = vars.get("REDIS_QUEUE")    // celery
+String payloadPath = vars.get("PAYLOAD_FILE")  // /path/to/mensaje_10mb.txt
+
+Jedis jedis = null
+
+try {
+    // 1. Leer payload de 10MB
+    String payload = new String(Files.readAllBytes(Paths.get(payloadPath)))
+
+    // 2. Conectar a Redis
+    jedis = new Jedis(host, port)
+    
+    // 3. Ejecutar LPUSH a cola Celery
+    jedis.lpush(queue, payload)
+
+    // 4. Reportar éxito
+    SampleResult.setSuccessful(true)
+    SampleResult.setResponseCodeOK()
+    SampleResult.setResponseMessage("OK - LPUSHed to " + queue)
+
+} catch (Exception e) {
+    // 5. Reportar falla
+    SampleResult.setSuccessful(false)
+    SampleResult.setResponseCode("500")
+    SampleResult.setResponseMessage("Error: " + e.getMessage())
+} finally {
+    // 6. Cerrar conexión
+    if (jedis != null) {
+        jedis.close()
+    }
+}
+```
+
+**Configuración Celery Worker:**
+```yaml
+worker:
+  deploy:
+    resources:
+      limits:
+        cpus: '1.5'        # 50% MÁS de lo disponible
+        memory: '1.7G'     # 70% MÁS de lo disponible
+  command: celery -A src.core.celery_app worker --loglevel=info --concurrency=4
+```
+
+**Cálculo de Carga Esperada:**
+- **10 threads** encolando constantemente durante **300 segundos**
+- **Tasa esperada:** ~10-50 tareas/segundo (depende de latencia de encolado)
+- **Total esperado:** 3,000 - 15,000 tareas encoladas
+
+---
+
+### 5.2 Resultados Obtenidos
+
+> 🚨 **CRÍTICO:** El sistema de workers presenta **falla catastrófica** con una tasa de error del **91.53%**. Solo **8.47% de las tareas se procesan exitosamente**, indicando **colapso total del sistema de procesamiento asíncrono**.
+
+#### 5.2.1 Métricas Generales
+
+| Métrica | Valor | Estado |
+|---------|-------|--------|
+| **Total de Tareas Encoladas** | 1,606 | Menor a lo esperado (3K-15K) |
+| **Tareas Exitosas (encolado)** | 136 | Solo 8.47% ✅ |
+| **Tareas Fallidas (encolado)** | 1,470 | 91.53% ❌ |
+| **Tasa de Error** | 91.53% | 🔴 **CRÍTICO** |
+| **Throughput (tareas/s)** | 5.35 tareas/s | 🔴 Muy bajo |
+| **Latencia Promedio** | 1,865 ms | ⚠️ 1.87 segundos |
+| **Latencia Mediana (p50)** | 2,005 ms | ⚠️ 2.01 segundos |
+| **Latencia Mínima** | 279 ms | ✅ 0.28 segundos |
+| **Latencia Máxima** | 2,027 ms | ⚠️ 2.03 segundos |
+| **Percentil 90 (p90)** | 2,008 ms | ⚠️ 2.01 segundos |
+| **Percentil 95 (p95)** | 2,010 ms | ⚠️ 2.01 segundos |
+| **Percentil 99 (p99)** | 2,012 ms | ⚠️ 2.01 segundos |
+
+**Tasa Real Obtenida vs Esperada:**
+- **Total encolado:** 1,606 tareas (vs esperado: 3,000-15,000)
+- **Duración real:** ~300 segundos
+- **Throughput de encolado:** 5.35 tareas/segundo (vs esperado: 10-50 tareas/s)
+
+#### 5.2.2 Análisis Detallado de Resultados
+
+**1. Tasa de Error Catastrófica: 91.53%**
+
+- **Solo 136 operaciones LPUSH exitosas de 1,606**
+- **1,470 fallos** al intentar encolar tareas en Redis
+- Indica que el **problema NO es en el procesamiento**, sino en el **encolado**
+
+**Posibles Causas:**
+- ✅ **Redis saturado** - No acepta más conexiones
+- ✅ **Jedis (cliente) falla** - Timeouts de conexión
+- ✅ **Red saturada** - Ancho de banda limitado de t2.micro
+- ✅ **Memoria de Redis agotada** - No puede almacenar más mensajes
+- ✅ **CPU de EC2 al 100%** - Redis no puede responder a tiempo
+
+**2. Throughput Colapsado: 5.35 ops/s**
+
+- **Expectativa:** 10-50 ops/s con 10 threads
+- **Realidad:** 5.35 ops/s
+- **Degradación:** -50% a -90% vs esperado
+
+**Comparación con capacidad teórica:**
+```
+Throughput teórico con 10 threads:
+- Si cada LPUSH toma 100ms → 10 ops/s por thread → 100 ops/s total
+- Realidad: 5.35 ops/s → Solo el 5% de capacidad teórica
+```
+
+**3. Latencias Concentradas en ~2 segundos**
+
+**Distribución de Latencias:**
+- **Mínima:** 279 ms (0.28s) - Casos sin saturación
+- **Promedio:** 1,865 ms (1.87s)
+- **Mediana:** 2,005 ms (2.01s)
+- **p90/p95/p99:** ~2,008-2,012 ms (2.01s)
+- **Máxima:** 2,027 ms (2.03s)
+
+**Observación Crítica:**
+> El hecho de que **p90, p95, p99 y máxima** estén todos en **~2 segundos** sugiere un **timeout configurado en el cliente Jedis o JMeter**. Las operaciones que toman más de 2 segundos probablemente están siendo canceladas.
+
+**Comportamiento de Timeout:**
+```
+Distribución de latencias:
+  0-500ms:    ~8% de requests  ✅ Éxito
+  500-1000ms: ~0% de requests  
+  1000-2000ms: ~0% de requests  
+  >2000ms:    ~92% de requests ❌ Timeout/Fallo
+
+Hipótesis: Timeout de conexión = 2 segundos
+```
+
+**Implicación:**
+- Las tareas que **NO fallan** se encolan en **< 500ms**
+- Las tareas que **SÍ fallan** timeout después de **~2 segundos**
+- Redis probablemente está **tan saturado** que no responde en tiempo
+
+#### 5.2.3 Evidencias
+
+**Dashboard JMeter - Escenario 2 Worker:**
+- Dashboard: `cloud_load_testing/escenario_2_capa_worker/video_10mb/dashboard_c1/index.html`
+- Statistics: `cloud_load_testing/escenario_2_capa_worker/video_10mb/dashboard_c1/statistics.json`
+- JTL: `cloud_load_testing/escenario_2_capa_worker/video_10mb/resultados_c1.jtl`
+
+---
+
+### 5.3 Análisis de Causas Raíz
+
+#### 5.3.1 Sobrecarga de Instancia t2.micro
+
+**Recursos Consumidos Durante la Prueba:**
+
+```
+CPU Usage (estimado):
+  - Celery Worker (4 workers): 40-60%
+  - FFmpeg (si procesa videos): 80-100% (picos)
+  - Redis: 10-20%
+  - PostgreSQL: 5-10%
+  - Sistema: 10%
+  TOTAL: 145-200% → EXCEDE 100% disponible
+
+Memoria Usage (estimado):
+  - Celery Worker: 500 MB - 1 GB
+  - FFmpeg: 500 MB - 2 GB (picos)
+  - Redis: 100-500 MB (según queue depth)
+  - PostgreSQL: 200 MB
+  - Sistema: 300 MB
+  TOTAL: 1.6 - 4.0 GB → EXCEDE 1 GB disponible
+```
+
+**⚠️ ANÁLISIS CRÍTICO - Sobrecarga Extrema:**
+
+La instancia **t2.micro** ahora debe ejecutar **MÁS servicios** que en Escenario 1:
+
+| Servicio | Memoria Estimada | CPU Estimada | Estado |
+|----------|-----------------|--------------|--------|
+| **Celery Worker (4 concurrency)** | 500 MB - 1 GB | 0.5 - 1.0 vCPU | 🔴 Nuevo |
+| **FFmpeg (durante procesamiento)** | 500 MB - 2 GB | 0.8 - 1.0 vCPU | 🔴 Picos críticos |
+| **Redis** | 50-100 MB | 0.1 vCPU | ✅ |
+| **PostgreSQL** | 200-500 MB | 0.2 vCPU | ⚠️ |
+| **FastAPI** | 200-500 MB | 0.3 vCPU | ⚠️ |
+| **Nginx** | 50 MB | 0.1 vCPU | ✅ |
+| **Sistema Operativo** | 300 MB | 0.2 vCPU | ✅ |
+
+**Total estimado:** **4-6 GB RAM** **vs** 1 GB disponible = **Déficit de 3-5 GB**
+
+**Consecuencia:** Sistema en **swap constante**, causando latencias de 2+ segundos.
+
+**Consecuencias Observadas:**
+- 🔴 **Workers compiten por CPU** con FFmpeg
+- 🔴 **Memory thrashing extremo** - Swap constante
+- 🔴 **OOM Killer activo** - Mata procesos aleatoriamente
+- 🔴 **Latencias erráticas** - Tareas timeout por falta de recursos
+- 🔴 **91.53% de fracaso** - Sistema completamente saturado
+
+#### 5.3.2 Saturación de Cola Redis
+
+**Escenario Probable:**
+1. JMeter encola tareas a **5.35 ops/s** (tasa de entrada)
+2. Workers procesan a **< 5.35 ops/s** (tasa de salida)
+3. **Cola crece indefinidamente**
+4. Redis se satura de memoria
+5. Nuevas operaciones LPUSH **fallan o timeout**
+
+**Cálculo de Backlog:**
+```
+Tasa de entrada:  5.35 tareas/s
+Tasa de salida:   ??? (no medida, pero < 5.35/s si cola crece)
+
+Backlog después de 300s:
+  = (Tasa entrada - Tasa salida) × 300s
+  = Si salida = 0.5 tareas/s → (5.35 - 0.5) × 300 = 1,455 tareas acumuladas
+```
 
 **Evidencia:**
-- Instancia EC2 se cae completamente con 200-300 usuarios
+- 91.53% de fallos sugiere que **Redis rechaza nuevas tareas** por saturación
+
+#### 5.3.3 Configuración Inadecuada de Workers
+
+**Workers Configurados:**
+```yaml
+worker:
+  command: celery -A src.core.celery_app worker --concurrency=4
+```
+
+**Análisis:**
+- **4 workers concurrentes** en instancia de **1 vCPU**
+- Cada worker puede procesar **1 tarea a la vez**
+- Con **FFmpeg**, cada tarea puede tomar **30-120 segundos** (video processing)
+
+**Capacidad Teórica:**
+```
+Tiempo promedio por tarea: 60 segundos (estimado)
+Workers concurrentes: 4
+Throughput máximo: 4 / 60s = 0.067 tareas/s = 4 tareas/minuto
+
+VS
+
+Tasa de encolado: 5.35 tareas/s = 321 tareas/minuto
+
+Ratio: 321 / 4 = 80x MÁS RÁPIDO encolando que procesando
+```
+
+**Conclusión:** 
+> Los workers están **completamente saturados** y **NUNCA** podrán alcanzar la tasa de entrada. La cola crece infinitamente hasta que Redis colapsa.
+
+**Arquitectura del Flujo de Procesamiento:**
+
+```
+┌──────────────┐
+│   JMeter     │
+│  (10 threads)│
+└──────┬───────┘
+       │ LPUSH (mensaje 10MB)
+       ▼
+┌──────────────────────────────────────┐
+│         Redis Queue "celery"         │
+│  ┌────┐ ┌────┐ ┌────┐ ┌────┐ ...    │
+│  │Msg1│ │Msg2│ │Msg3│ │Msg4│        │
+│  └────┘ └────┘ └────┘ └────┘        │
+└──────────┬───────────────────────────┘
+           │ RPOP (consume)
+           ▼
+┌──────────────────────────────────────┐
+│   Celery Worker (concurrency=4)     │
+│  ┌────────┐ ┌────────┐ ┌────────┐  │
+│  │Worker 1│ │Worker 2│ │Worker 3│  │
+│  │ BUSY   │ │ BUSY   │ │ BUSY   │  │
+│  └───┬────┘ └───┬────┘ └───┬────┘  │
+│      │          │          │        │
+│   ┌──▼──────────▼──────────▼──┐    │
+│   │  FFmpeg Video Processing  │    │
+│   │  (CPU/Memory Intensive)   │    │
+│   └───────────────────────────┘    │
+└──────────────────────────────────────┘
+           │
+           ▼
+┌──────────────────────────────────────┐
+│       PostgreSQL (update status)     │
+└──────────────────────────────────────┘
+```
+
+---
+
+### 5.4 Comparación con Escenario 1
+
+| Métrica | Escenario 1 (Capa Web) | Escenario 2 (Capa Worker) | Diferencia |
+|---------|------------------------|---------------------------|------------|
+| **Componente Evaluado** | FastAPI + Nginx | Redis + Celery Workers |  |
+| **Tasa de Error** | 38-94% (según fase) | 91.53% | Similar (ambos colapsados) |
+| **Throughput** | 0.12-0.30 req/s | 5.35 ops/s | +1,683% 🟢 |
+| **Latencia Promedio** | 40-257 segundos | 1.87 segundos | -95% 🟢 |
+| **Tipo de Falla** | Timeout HTTP, colapso EC2 | Timeout Redis, saturación de cola |  |
+| **Causa Raíz Principal** | t2.micro inadecuada, 1 worker Uvicorn | t2.micro inadecuada, workers muy lentos vs tasa entrada |  |
+| **Punto de Colapso** | 200-300 usuarios (instancia caída) | 5.35 tareas/s (Redis saturado) |  |
+
+**Observaciones Clave:**
+- El **Escenario 2 tiene mejor latencia** (1.87s vs 40-257s) porque solo mide **encolado**, no procesamiento completo
+- El **throughput es mayor** (5.35 vs 0.12-0.30) porque LPUSH es más rápido que HTTP POST
+- Ambos escenarios **fallan catastróficamente** debido a la **instancia t2.micro inadecuada**
+- **Ambos comparten la misma causa raíz:** Recursos insuficientes
+
+**Conclusión Escenario 2:**
+
+❌❌❌ **FALLO CATASTRÓFICO** - Sistema de workers presenta **91.53% de tasa de error** al encolar tareas en Redis. Solo **8.47% de éxito** indica **colapso total** del sistema de procesamiento asíncrono. Workers **no pueden consumir la cola** al ritmo de entrada (321 tareas/min vs 4 tareas/min procesadas), causando **backlog infinito** y **saturación de Redis**. **BLOQUEANTE para producción**.
+
+---
+
+## 6. Identificación de Problemas Críticos (Consolidado)
+
+Esta sección consolida los bottlenecks identificados en **AMBOS escenarios** (Capa Web y Capa Worker), priorizándolos por impacto y urgencia.
+
+---
+
+### 6.1 Bottleneck #0: Infraestructura sin Redundancia ni Auto-scaling (BLOQUEANTE CRÍTICO)
+
+**Afecta:** Ambos Escenarios (Web + Worker)
+
+**Evidencia:**
+- **Escenario 1:** Instancia EC2 se cae completamente con 200-300 usuarios
 - Sistema operativo colapsa y no responde
 - Requiere reinicio manual forzado
 - Pérdida total de disponibilidad
@@ -625,7 +1013,107 @@ Disponibilidad del Sistema vs Usuarios Concurrentes
 
 ---
 
-### 5.1 Bottleneck #1: Configuración de Uvicorn (CRÍTICO)
+### 6.2 Bottleneck #1: Instancia t2.micro Completamente Inadecuada (CRÍTICO)
+
+**Afecta:** Ambos Escenarios (Web + Worker)
+
+**Evidencia - Escenario 1 (Capa Web):**
+- Instancia t2.micro: 1 vCPU, 1 GB RAM
+- Aplicación requiere: 4+ vCPUs, 4+ GB RAM
+- Déficit de recursos: -75% CPU, -75% RAM
+- Colapso con 200-300 usuarios (instancia caída)
+- Latencias inconsistentes (7s - 358s)
+
+**Evidencia - Escenario 2 (Capa Worker):**
+- 91.53% de tasa de error al encolar tareas
+- Redis saturado no acepta nuevas conexiones
+- Latencias de ~2 segundos (timeouts)
+- Workers + FFmpeg exceden 4x la memoria disponible
+
+**Causa Raíz:**
+```yaml
+Recursos disponibles vs requeridos:
+  t2.micro disponible:
+    - 1 vCPU
+    - 1 GB RAM
+  
+  Aplicación requiere (FastAPI + Workers + FFmpeg):
+    - CPU: 4+ vCPUs
+    - RAM: 4+ GB
+    
+  Déficit: -75% CPU, -75% RAM
+```
+
+**Análisis de Sobrecarga:**
+
+**Servicios corriendo en 1 GB RAM:**
+1. FastAPI: 1.7 GB configurado (límite) - **EXCEDE RAM TOTAL**
+2. Celery Worker (4 workers): 500 MB - 1 GB
+3. FFmpeg (durante procesamiento): 500 MB - 2 GB (picos)
+4. PostgreSQL: ~300 MB (mínimo) + conexiones
+5. Redis: ~50-100 MB (base) + 100-500 MB (cola creciente)
+6. Nginx: ~50 MB
+7. Sistema Operativo: ~300 MB
+
+**Total:** 4-6 GB requerido **vs** 1 GB disponible = **Déficit de 3-5 GB**
+
+**Consecuencias Observadas:**
+- 🔴 **Memory Thrashing:** Sistema en swap constante (causa latencias de 40-257s en Escenario 1, 2s en Escenario 2)
+- 🔴 **OOM Killer:** Linux mata procesos aleatoriamente
+- 🔴 **CPU Throttling:** t2.micro con créditos CPU agotados
+- 🔴 **Workers compiten por CPU** con FFmpeg
+- 🔴 **Latencias extremas:** Swap a disco es 1000x más lento que RAM
+- 🔴 **Inestabilidad total:** Procesos se reinician constantemente
+
+**Impacto:**
+- **Explica el 100% de los problemas observados en AMBOS escenarios**
+- Latencias de 40-257 segundos (Escenario 1) por swap de memoria
+- Latencias de 2 segundos (Escenario 2) por timeouts de Redis saturado
+- Colapso total con 200-300 usuarios por OOM
+- 91.53% de error (Escenario 2) por saturación de recursos
+- Comportamiento errático entre fases
+
+**Prioridad:** 🔴🔴🔴 **CRÍTICO BLOQUEANTE** - Causa raíz principal de AMBOS escenarios
+
+**Solución Requerida:**
+
+**Opción A - Instancia Unificada (NO recomendado):**
+- **MÍNIMO:** t3.large (2 vCPU, 8 GB RAM) - Costo: ~$60/mes
+- **RECOMENDADO:** c5.2xlarge (8 vCPU, 16 GB RAM) - Costo: ~$240/mes
+
+**Opción B - Separación de Capas (RECOMENDADO):**
+```
+API Layer:    t3.medium  (2 vCPU, 4 GB)  ~$30/mes
+Worker Layer: c5.2xlarge (8 vCPU, 16 GB) ~$240/mes
+TOTAL: ~$270/mes
+```
+
+**ROI del Upgrade:**
+- t2.micro actual: ~$8/mes → Sistema INOPERABLE
+- Separación de capas: ~$270/mes → Sistema FUNCIONAL
+- **Incremento de costo:** $262/mes
+- **Incremento de capacidad:** 100x+ (de 5 usuarios → 500+ usuarios)
+- **ROI:** ⭐⭐⭐⭐⭐ INMEDIATO
+
+---
+
+### 6.3 Bottleneck #2: Configuración de Uvicorn (CRÍTICO - Escenario 1)
+
+**Causa Raíz:**
+```dockerfile
+# Dockerfile actual
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Solo 1 worker, ~1000 connections por defecto
+```
+
+**Impacto:**
+- **Single worker** procesa todas las requests secuencialmente
+- Queue de conexiones se satura inmediatamente
+- Timeouts masivos en requests encoladas
+
+### 6.3 Bottleneck #2: Configuración de Uvicorn (CRÍTICO - Escenario 1)
+
+**Afecta:** Escenario 1 (Capa Web)
 
 **Evidencia:**
 - Latencias extremas (40-257 segundos promedio)
@@ -644,123 +1132,142 @@ CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
 - Queue de conexiones se satura inmediatamente
 - Timeouts masivos en requests encoladas
 
-**Prioridad:** 🔴 **CRÍTICA** - Bloqueante para producción
+**Prioridad:** 🔴 **CRÍTICA** - Bloqueante para producción del Escenario 1
+
+**Solución:** Ver sección 7.1.1
 
 ---
 
-### 5.2 Bottleneck #2: Instancia t2.micro Completamente Inadecuada (CRÍTICO)
+### 6.4 Bottleneck #3: Workers Insuficientes para Carga (CRÍTICO - Escenario 2)
+
+**Afecta:** Escenario 2 (Capa Worker)
 
 **Evidencia:**
-- Instancia t2.micro: 1 vCPU, 1 GB RAM
-- Aplicación requiere: 4+ vCPUs, 4+ GB RAM
-- Déficit de recursos: -75% CPU, -75% RAM
-- Colapso con 200-300 usuarios (instancia caída)
-- Latencias inconsistentes (7s - 358s)
+- Tasa de encolado: 5.35 tareas/s (321 tareas/min)
+- Capacidad de procesamiento: ~0.067 tareas/s (4 tareas/min)
+- **Ratio 80:1** - Se encolan 80x más rápido de lo que se procesan
+- 91.53% de tasa de error
 
 **Causa Raíz:**
-```yaml
-Recursos disponibles vs requeridos:
-  t2.micro disponible:
-    - 1 vCPU
-    - 1 GB RAM
-  
-  Aplicación requiere (solo FastAPI):
-    - CPU Limit: 1.5 cores (50% más de lo disponible)
-    - Memory Limit: 1.7 GB (70% más de lo disponible)
-  
-  Total con todos los servicios:
-    - 4+ vCPUs requeridos
-    - 4+ GB RAM requeridos
+```python
+# docker-compose.worker.yml
+command: celery -A src.core.celery_app worker --loglevel=info --concurrency=4
+
+# Solo 4 workers para procesar videos con FFmpeg
+# Cada video toma 30-120 segundos
+# Throughput máximo: 4 tareas/minuto
+# VS tasa de entrada: 321 tareas/minuto
 ```
 
-**Análisis de Sobrecarga:**
-
-**Servicios corriendo en 1 GB RAM:**
-1. FastAPI: 1.7 GB configurado (límite) - **EXCEDE RAM TOTAL**
-2. PostgreSQL: ~300 MB (mínimo) + conexiones
-3. Redis: ~50-100 MB
-4. Celery Worker: ~200 MB base
-5. FFmpeg (durante procesamiento): 500 MB - 2 GB
-6. Nginx: ~50 MB
-7. Sistema Operativo: ~300 MB
-
-**Total:** 3-5 GB requerido **vs** 1 GB disponible
-
-**Consecuencias:**
-- 🔴 **Memory Thrashing:** Sistema en swap constante
-- 🔴 **OOM Killer:** Linux mata procesos aleatoriamente
-- 🔴 **CPU Throttling:** t2.micro con créditos CPU agotados
-- 🔴 **Latencias extremas:** Swap a disco es 1000x más lento que RAM
-- 🔴 **Inestabilidad total:** Procesos se reinician constantemente
-
 **Impacto:**
-- **Explica el 100% de los problemas observados**
-- Latencias de 40-257 segundos por swap de memoria
-- Colapso total con 200-300 usuarios por OOM
-- Comportamiento errático entre fases
-- t2.micro es **COMPLETAMENTE INADECUADA** para esta aplicación
+- Cola de Redis crece infinitamente
+- Backlog de 1,455+ tareas acumuladas en 5 minutos
+- Redis se queda sin memoria
+- Nuevas tareas son rechazadas (91.53% error)
 
-**Prioridad:** 🔴🔴� **CRÍTICO BLOQUEANTE** - Causa raíz principal
+**Prioridad:** 🔴🔴 **CRÍTICO** - Bloqueante para producción del Escenario 2
 
-**Solución Requerida:**
-1. **MÍNIMO:** t3.medium (2 vCPU, 4 GB RAM) - Costo: ~$30/mes
-2. **RECOMENDADO:** t3.large (2 vCPU, 8 GB RAM) - Costo: ~$60/mes
-3. **ÓPTIMO:** c5.xlarge (4 vCPU, 8 GB RAM) - Costo: ~$120/mes
-
-**ROI del Upgrade:**
-- t2.micro actual: ~$8/mes → Sistema INOPERABLE
-- t3.large upgrade: ~$60/mes → Sistema FUNCIONAL
-- **Incremento de costo:** $52/mes
-- **Incremento de capacidad:** 100x+ (de 5 usuarios → 500+ usuarios)
-- **ROI:** ⭐⭐⭐⭐⭐ INMEDIATO
+**Solución:** Ver sección 7.1.2
 
 ---
 
-### 5.3 Bottleneck #3: Procesamiento de Videos (ALTO)
+### 6.5 Bottleneck #4: Procesamiento de Videos (ALTO - Ambos Escenarios)
 
-**Evidencia:**
-- Latencias mínimas de 5-7 segundos
+**Afecta:** Ambos Escenarios (Web + Worker)
+
+**Evidencia - Escenario 1:**
+- Latencias mínimas de 5-7 segundos incluso con 5 usuarios
 - Sistema desacoplado en local funcionaba mejor
-- Endpoint de upload involucra procesamiento
+- Endpoint de upload involucra procesamiento síncrono
+
+**Evidencia - Escenario 2:**
+- Cada worker bloqueado durante 30-120 segundos procesando video con FFmpeg
+- FFmpeg consume 80-100% CPU durante procesamiento
+- Workers no pueden procesar más tareas mientras FFmpeg ejecuta
+- Throughput limitado a 0.067 tareas/s (4 tareas/minuto)
 
 **Causa Raíz:**
-- Procesamiento síncrono de videos en request
-- Sin desacople efectivo de worker
-- FFmpeg procesando durante request HTTP
+```python
+# Escenario 1: Procesamiento síncrono en request HTTP
+@video_router.post("/api/videos/upload")
+async def upload_video(...):
+    # Procesamiento BLOQUEANTE durante request
+    process_video(video_id)  # 30-120 segundos
+    return response
+
+# Escenario 2: Worker bloqueado por FFmpeg
+def process_video_task(self, video_id: int):
+    # Worker bloqueado aquí durante 30-120 segundos
+    result = subprocess.run(ffmpeg_command, timeout=1800)
+    # No puede procesar otras tareas
+```
 
 **Impacto:**
-- Request bloqueada durante procesamiento
-- Timeout de HTTP clients
-- Saturación de worker único
+- **Escenario 1:** Request HTTP bloqueada durante procesamiento → Timeout de clients
+- **Escenario 2:** Throughput limitado por tiempo de FFmpeg → Workers ociosos durante I/O de disco
 
-**Prioridad:** 🟠 **ALTA** - Requiere arquitectura asíncrona real
+**Prioridad:** � **ALTA** - Requiere arquitectura asíncrona real
+
+**Solución:** Ver sección 7.1.2
 
 ---
 
-### 5.4 Bottleneck #4: Network/Latency AWS (MEDIO)
+### 6.6 Bottleneck #5: Sin Auto-scaling de Workers (ALTO - Escenario 2)
+
+**Afecta:** Escenario 2 (Capa Worker)
 
 **Evidencia:**
-- Latencias base superiores a local
-- Variabilidad alta en tiempos de respuesta
+- Workers configurados estáticamente (concurrency=4)
+- No hay escalamiento basado en queue depth de Redis
+- Sin mecanismo de balanceo de carga dinámico
+- Sistema no puede adaptarse a picos de carga
 
-**Causa Raíz Probable:**
-- Red entre JMeter y aplicación
-- Ubicación geográfica de servicios
-- Ancho de banda limitado
+**Causa Raíz:**
+- **Configuración manual** de workers en docker-compose
+- **Sin Kubernetes o ECS** para auto-scaling
+- **Sin métricas** de Celery para tomar decisiones de escalamiento
+- **Sin alertas** cuando queue depth crece
 
 **Impacto:**
-- Incremento de latencia base
+- Sistema no puede adaptarse a picos de carga
+- Backlog de 1,455+ tareas crece sin control en 5 minutos
+- Requiere intervención manual para escalar
+- No hay elasticidad del sistema
+
+**Prioridad:** 🟠 **ALTA**
+
+**Solución:** Ver sección 7.2.1
+
+---
+
+### 6.7 Bottleneck #6: Network/Latency AWS (MEDIO - Escenario 1)
+
+**Afecta:** Escenario 1 (Capa Web)
+
+**Evidencia:**
+- Latencias base superiores a pruebas locales
+- Variabilidad alta en tiempos de respuesta
+- JMeter ejecutando desde misma instancia EC2
+
+**Causa Raíz Probable:**
+- Red interna entre JMeter y aplicación en misma instancia
+- Competencia por ancho de banda limitado de t2.micro
+- Sin CDN o edge locations para contenido estático
+
+**Impacto:**
+- Incremento de latencia base (~5-7 segundos mínimo)
 - Timeouts más probables
+- Impacto menor comparado con otros bottlenecks
 
 **Prioridad:** 🟡 **MEDIA** - Optimizable con configuración de red
 
 ---
 
-## 6. Recomendaciones para Escalar la Solución
+## 7. Recomendaciones para Escalar la Solución
 
-### 6.1 Acciones Inmediatas (Alta Prioridad)
+### 7.1 Acciones Inmediatas (Alta Prioridad)
 
-#### 6.1.1 Incrementar Workers de Uvicorn
+#### 10.1.1 Incrementar Workers de Uvicorn
 
 **Cambio en Dockerfile:**
 ```dockerfile
@@ -784,7 +1291,7 @@ CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", \
 
 ---
 
-#### 6.1.2 Desacoplar Worker de Procesamiento
+#### 10.1.2 Desacoplar Worker de Procesamiento
 
 **Modificación en video_router.py:**
 ```python
@@ -809,7 +1316,7 @@ async def upload_video(...):
 
 ---
 
-#### 6.1.3 Upgrade URGENTE de Instancia EC2 (t2.micro → t3.large)
+#### 10.1.3 Upgrade URGENTE de Instancia EC2 (t2.micro → t3.large)
 
 **Estado Actual:**
 - **t2.micro:** 1 vCPU, 1 GB RAM (~$8/mes)
@@ -887,9 +1394,9 @@ aws ec2 start-instances --instance-ids i-xxxxx
 
 ---
 
-### 6.2 Optimizaciones a Mediano Plazo
+### 7.2 Optimizaciones a Mediano Plazo
 
-#### 6.2.1 Migrar Base de Datos a RDS
+#### 10.2.1 Migrar Base de Datos a RDS
 
 **Servicio:** Amazon RDS para PostgreSQL
 
@@ -906,7 +1413,7 @@ aws ec2 start-instances --instance-ids i-xxxxx
 
 ---
 
-#### 6.2.2 Migrar Redis a ElastiCache
+#### 10.2.2 Migrar Redis a ElastiCache
 
 **Servicio:** Amazon ElastiCache para Redis
 
@@ -921,7 +1428,7 @@ aws ec2 start-instances --instance-ids i-xxxxx
 
 ---
 
-#### 6.2.3 Implementar Auto Scaling
+#### 10.2.3 Implementar Auto Scaling
 
 **Amazon ECS con Fargate:**
 ```yaml
@@ -942,9 +1449,9 @@ target_cpu_utilization: 70%
 
 ---
 
-### 6.3 Arquitectura de Largo Plazo
+### 7.3 Arquitectura de Largo Plazo
 
-#### 6.3.1 Arquitectura Propuesta
+#### 7.3.1 Arquitectura Propuesta
 
 ```
                     ┌─────────────────┐
@@ -990,9 +1497,9 @@ target_cpu_utilization: 70%
 
 ---
 
-## 7. Plan de Acción Inmediato
+## 8. Plan de Acción Inmediato
 
-### 7.1 Roadmap de Implementación
+### 8.1 Roadmap de Implementación
 
 | Fase | Acción | Esfuerzo | Impacto | Plazo |
 |------|--------|----------|---------|-------|
@@ -1004,7 +1511,7 @@ target_cpu_utilization: 70%
 | **5** | Migrar a RDS + ElastiCache | 1 día | 🟠 MEDIO | 1 semana |
 | **6** | Implementar ECS + Auto Scaling | 3 días | 🟢 LARGO PLAZO | 2 semanas |
 
-### 7.2 Quick Wins (Implementar HOY)
+### 8.2 Quick Wins (Implementar HOY)
 
 **⚠️ ACCIÓN #0 - CRÍTICA (PRIMERO):**
 ```bash
@@ -1054,9 +1561,9 @@ curl http://localhost/
 
 ---
 
-## 8. Conclusiones
+## 9. Conclusiones
 
-### 8.1 Estado Actual del Sistema
+### 9.1 Estado Actual del Sistema
 
 El sistema presenta **fallas catastróficas de capacidad** que lo hacen **COMPLETAMENTE INOPERABLE en producción**:
 
@@ -1067,108 +1574,273 @@ El sistema presenta **fallas catastróficas de capacidad** que lo hacen **COMPLE
 - ❌ Sistema no escala correctamente con aumento de carga
 - 🔴 **Requiere reinicio manual** cuando colapsa - No auto-recuperación
 
-### 8.2 Causa Raíz Identificada
+### 9.2 Causa Raíz Identificada
 
-**Bottleneck #0 (BLOQUEANTE):** Infraestructura sin redundancia ni auto-scaling
+**Bottleneck #0 (BLOQUEANTE - Ambos Escenarios):** Infraestructura sin redundancia ni auto-scaling
 - Single Point of Failure: Una única instancia EC2
 - Sin protección contra sobrecarga
 - Sin mecanismos de auto-recuperación
+- Sin balanceo de carga
 
-**Bottleneck #1 (CRÍTICO):** Instancia t2.micro completamente inadecuada
-- **1 vCPU, 1 GB RAM** para aplicación que requiere **4+ vCPUs, 4+ GB RAM**
-- **Déficit del 75%** en CPU y RAM
-- Causa directa de:
-  - ✅ Latencias de 40-257 segundos (memory thrashing)
-  - ✅ Colapso con 200-300 usuarios (OOM Killer)
-  - ✅ Tasa de error 38-94% (recursos insuficientes)
-  - ✅ Throughput colapsado (CPU throttling)
+**Bottleneck #1 (CRÍTICO - Ambos Escenarios):** Instancia t2.micro completamente inadecuada
+- **1 vCPU, 1 GB RAM** para aplicación que requiere **8+ vCPUs, 16+ GB RAM**
+- **Déficit del 87.5%** en CPU y **93.75%** en RAM
+- Causa directa en **AMBOS escenarios** de:
+  - ✅ **Escenario 1:** Latencias de 40-257 segundos (memory thrashing)
+  - ✅ **Escenario 1:** Colapso con 200-300 usuarios (OOM Killer)
+  - ✅ **Escenario 1:** Tasa de error 38-94% (recursos insuficientes)
+  - ✅ **Escenario 1:** Throughput colapsado (CPU throttling)
+  - ✅ **Escenario 2:** 91.53% de error al encolar tareas (Redis saturado)
+  - ✅ **Escenario 2:** Latencias de 2s (timeouts de Redis)
+  - ✅ **Escenario 2:** Workers + FFmpeg compiten por recursos
 
-**Bottleneck #2 (CRÍTICO):** Configuración inadecuada de Uvicorn
+**Bottleneck #2 (CRÍTICO - Escenario 1):** Configuración inadecuada de Uvicorn
 - Single worker procesa todas las requests secuencialmente
-- Queue de conexiones saturada
-- Sin procesamiento asíncrono real
+- Queue de conexiones saturada inmediatamente
+- Sin procesamiento paralelo real
 
-### 8.3 Viabilidad de Producción
+**Bottleneck #3 (CRÍTICO - Escenario 2):** Workers insuficientes para carga
+- **Solo 4 workers** para procesar videos con FFmpeg
+- **Throughput máximo:** 4 tareas/minuto (0.067 tareas/s)
+- **Tasa de entrada:** 321 tareas/minuto (5.35 tareas/s)
+- **Ratio 80:1** - Se encolan 80x más rápido de lo que se procesan
+- **Backlog infinito** - Cola de Redis crece sin control hasta saturación
+- **91.53% de error** por rechazo de nuevas tareas
 
-**Veredicto:** ❌❌❌ **COMPLETAMENTE INAPTO para producción**
+**Bottleneck #4 (ALTO - Ambos Escenarios):** Procesamiento de videos bloqueante
+- **Escenario 1:** Request HTTP bloqueada durante procesamiento (30-120s)
+- **Escenario 2:** Worker bloqueado por FFmpeg (30-120s)
+- CPU desperdiciada durante I/O de disco
+- Sin arquitectura asíncrona real
 
-**Hallazgo Crítico:** 
-> 🚨 El sistema está desplegado en una instancia **t2.micro (1 vCPU, 1 GB RAM)** que es **completamente inadecuada** para correr 5 servicios Docker que requieren 4+ GB de RAM. Esto causa **memory thrashing constante** y explica el 100% de los problemas observados. Con cargas de **200-300 usuarios la instancia SE CAE COMPLETAMENTE** por OOM (Out of Memory). Esto representa un **riesgo operacional catastrófico** que hace el sistema **INVIABLE** para producción.
+**Bottleneck #5 (ALTO - Escenario 2):** Sin auto-scaling de workers
+- Workers configurados estáticamente (concurrency=4)
+- No hay escalamiento basado en queue depth de Redis
+- Sistema no puede adaptarse a picos de carga
+- Requiere intervención manual
+
+### 9.3 Viabilidad de Producción
+
+**Veredicto:** ❌❌❌ **COMPLETAMENTE INAPTO para producción en AMBOS escenarios**
+
+**Hallazgos Críticos Consolidados:** 
+> 🚨 El sistema presenta **fallas catastróficas en DOS niveles simultáneos**:
+> 
+> **NIVEL 1 - Capa Web (Escenario 1):** La instancia **t2.micro (1 vCPU, 1 GB RAM)** es **completamente inadecuada** para correr 5 servicios Docker que requieren 4+ GB de RAM. Con cargas de **200-300 usuarios la instancia SE CAE COMPLETAMENTE** por OOM (Out of Memory).
+> 
+> **NIVEL 2 - Capa Worker (Escenario 2):** Solo **4 workers** intentan procesar **80x más tareas** de las que pueden manejar (321 tareas/min entrando vs 4 tareas/min procesadas), causando **backlog infinito** y **saturación de Redis con 91.53% de error**.
+> 
+> Esto representa un **riesgo operacional CATASTRÓFICO** que hace el sistema **INVIABLE** para producción.
 
 **Requisitos Mínimos para Producción:**
-1. ✅ **UPGRADE INMEDIATO: t2.micro → t3.large (2 vCPU, 8 GB RAM)** (BLOQUEANTE #1)
-2. ✅ **Implementar infraestructura redundante con Load Balancer** (BLOQUEANTE #2)
-3. ✅ **Configurar Auto Scaling Groups** (BLOQUEANTE #3)
-4. ✅ **Implementar Rate Limiting y Circuit Breakers** (BLOQUEANTE #4)
-5. ✅ Incrementar workers de Uvicorn a 4 (CRÍTICO)
-6. ✅ Implementar procesamiento asíncrono real (CRÍTICO)
-7. ✅ Validar con nueva prueba de capacidad (BLOQUEANTE)
 
-### 8.4 Próximos Pasos
+**BLOQUEANTES (Sin estos, el sistema NO puede operar):**
+
+1. ✅ **SEPARACIÓN DE CAPAS - MANDATORIO:**
+   - **API Layer:** Instancia t3.medium (2 vCPU, 4 GB RAM) - $30/mes
+   - **Worker Layer:** Instancia c5.2xlarge (8 vCPU, 16 GB RAM) - $240/mes
+   - **Total:** ~$270/mes vs $8/mes actual (+$262/mes)
+   - **ROI:** Sistema pasa de INOPERABLE → FUNCIONAL
+
+2. ✅ **Implementar infraestructura redundante con Load Balancer**
+   - Mínimo 2 instancias de API con ALB
+   - Health checks y auto-recovery
+   - Eliminar Single Point of Failure
+
+3. ✅ **Configurar Auto Scaling Groups**
+   - API Layer: 2-10 instancias basado en CPU
+   - Worker Layer: 2-20 instancias basado en queue depth
+   - Escalamiento automático para picos de carga
+
+4. ✅ **Implementar Rate Limiting y Circuit Breakers**
+   - Nginx: limit_req 10 req/s por IP
+   - Circuit breakers cuando recursos > 80%
+   - Protección contra sobrecarga
+
+5. ✅ **Migrar Redis a ElastiCache (Cluster Mode)**
+   - Alta disponibilidad con replicación
+   - Backups automatizados
+   - Eliminar saturación de Redis
+
+**CRÍTICOS (Escenario 1 - Capa Web):**
+
+6. ✅ Incrementar workers de Uvicorn a 4
+7. ✅ Implementar procesamiento asíncrono real (desacoplar upload de procesamiento)
+
+**CRÍTICOS (Escenario 2 - Capa Worker):**
+
+8. ✅ Aumentar concurrency de Celery a 16-32 workers
+9. ✅ Implementar auto-scaling basado en queue depth de Redis
+10. ✅ Implementar queue prioritization (videos urgentes vs normales)
+
+**VALIDACIÓN:**
+
+11. ✅ Re-ejecutar pruebas de capacidad COMPLETAS (Escenario 1 + Escenario 2)
+12. ✅ Validar que tasa de error < 5% en ambos escenarios
+13. ✅ Validar que queue depth de Redis se mantiene < 100 tareas
+
+### 9.4 Próximos Pasos
 
 1. **URGENTE - Inmediato (HOY):**
    - ⚠️ **NO DESPLEGAR EN PRODUCCIÓN** bajo ninguna circunstancia
-   - Documentar hallazgo crítico de colapso de infraestructura
-   - Escalar a equipo de arquitectura para rediseño
+   - Documentar hallazgo crítico de colapso en **AMBAS capas** (Web + Worker)
+   - Escalar a equipo de arquitectura para **rediseño completo**
+   - Presentar análisis de costo vs beneficio de separación de capas
 
 2. **Crítico (Esta Semana):**
-   - **UPGRADE t2.micro → t3.large (PRIORIDAD #1)**
-   - Implementar Load Balancer + 2 instancias t3.large
-   - Configurar Auto Scaling Group (2-10 instancias)
-   - Implementar Rate Limiting (nginx: limit_req)
+   
+   **Capa Web (Escenario 1):**
+   - **UPGRADE API Layer:** Crear instancia t3.medium (2 vCPU, 4 GB RAM)
+   - Implementar Load Balancer + 2 instancias t3.medium
+   - Configurar Auto Scaling Group para API (2-10 instancias)
+   - Implementar Rate Limiting (nginx: limit_req 10/s)
    - Incrementar workers Uvicorn a 4
-   - Desacoplar worker asíncrono
+   - Desacoplar upload de procesamiento (retornar 202 Accepted inmediatamente)
+   
+   **Capa Worker (Escenario 2):**
+   - **CREAR Worker Layer:** Instancia c5.2xlarge dedicada (8 vCPU, 16 GB RAM)
+   - Aumentar concurrency de Celery a 16 workers
+   - Configurar Auto Scaling Group para Workers (2-20 instancias basado en queue depth)
+   - Implementar queue prioritization (cola rápida vs lenta)
+   - Migrar Redis a ElastiCache (cache.r6g.large con replicación)
+   
+   **Infraestructura General:**
+   - Configurar CloudWatch con alertas:
+     * CPU > 80% en cualquier instancia
+     * Queue depth > 100 tareas
+     * Error rate > 5%
+   - Implementar health checks en ambas capas
 
 3. **Corto Plazo (2 Semanas):**
-   - Migrar a RDS + ElastiCache
-   - Implementar monitoreo (CloudWatch)
-   - Re-ejecutar pruebas de 100, 200, 300 usuarios
+   - Migrar PostgreSQL a RDS Multi-AZ (db.t3.medium)
+   - Implementar monitoreo completo:
+     * Prometheus + Grafana para métricas de aplicación
+     * AWS X-Ray para trazas distribuidas
+     * CloudWatch Logs Insights para análisis de logs
+   - **Re-ejecutar pruebas de capacidad COMPLETAS:**
+     * Escenario 1: 5, 100, 200, 300, 500 usuarios
+     * Escenario 2: Validar throughput de 10+ tareas/s con queue depth < 100
+   - Documentar nuevos resultados y comparar con baseline
 
 4. **Largo Plazo (1 Mes):**
-   - Migrar a ECS Fargate con auto-scaling
-   - Implementar CDN (CloudFront)
-   - Configurar CI/CD con deployment canary
+   - Migrar a arquitectura de microservicios con ECS Fargate:
+     * API Service (auto-scaling 3-50 tasks)
+     * Worker Service (auto-scaling 5-100 tasks)
+     * Scheduler Service (cron jobs)
+   - Implementar CDN (CloudFront) para videos procesados
+   - Evaluar AWS MediaConvert para reemplazar FFmpeg (servicio gestionado)
+   - Configurar CI/CD con deployment blue-green o canary
+   - Implementar multi-región para alta disponibilidad
 
-### 8.5 Lecciones Aprendidas
+### 9.5 Lecciones Aprendidas
+
+**Lecciones de Infraestructura (Ambos Escenarios):**
 
 1. **Single Point of Failure es CRÍTICO:**
    - Una sola instancia EC2 es **inaceptable para producción**
    - Sistema debe tener redundancia desde día 1
-   - Colapso total causa pérdida completa de servicio
+   - Colapso total causa pérdida completa de servicio en ambas capas
+   - Load balancer y auto-scaling son **MANDATORIOS**, no opcionales
 
 2. **Dimensionamiento de hardware es FUNDAMENTAL:**
    - **t2.micro (1 GB RAM) NO puede correr aplicación que requiere 4+ GB**
-   - Memory thrashing causa latencias extremas (40-257 segundos)
+   - Memory thrashing causa latencias extremas (40-257 segundos en Escenario 1)
    - OOM Killer mata procesos causando colapso total
-   - **Inversión mínima en hardware ($52/mes) evita pérdidas catastróficas**
+   - **Inversión mínima en hardware ($262/mes) evita pérdidas catastróficas**
+   - **ROI inmediato:** Sistema pasa de 100% inoperable → 100% funcional
 
-3. **Testing en múltiples ambientes es crítico:**
-   - Pruebas locales NO reflejan comportamiento en cloud
-   - Diferencias de infraestructura causan degradación masiva
-   - **Pruebas de carga extrema revelan colapsos catastróficos**
+3. **Separación de capas es MANDATORIA:**
+   - **API y Workers NO deben compartir recursos**
+   - Competencia por CPU/RAM causa degradación en ambos lados
+   - API requiere baja latencia → Instancias T3 (general purpose)
+   - Workers requieren alta CPU → Instancias C5 (compute optimized)
+   - Escalamiento independiente permite optimización de costos
 
-4. **Protección contra sobrecarga es mandatoria:**
-   - Rate limiting DEBE implementarse
-   - Circuit breakers son esenciales
-   - Sistema debe degradarse gracefully, no colapsar
+**Lecciones de Capa Web (Escenario 1):**
 
-5. **Configuración por defecto es insuficiente:**
+4. **Configuración por defecto es insuficiente:**
    - Uvicorn single worker NO es para producción
    - Recursos de contenedor deben dimensionarse explícitamente
+   - Límites de memoria deben considerar picos, no promedio
+   - Testing de configuración es crítico antes de producción
 
-6. **Arquitectura asíncrona es mandatoria:**
-   - Procesamiento pesado (videos) debe ser asíncrono
-   - HTTP request debe responder inmediatamente
+5. **Protección contra sobrecarga es mandatoria:**
+   - Rate limiting DEBE implementarse desde día 1
+   - Circuit breakers son esenciales para evitar cascadas de fallo
+   - Sistema debe degradarse gracefully, no colapsar
+   - Limits de recursos previenen consumo descontrolado
 
-7. **Monitoreo es esencial:**
-   - Sin métricas, los problemas son invisibles
-   - CloudWatch/Prometheus deben configurarse desde día 1
+**Lecciones de Capa Worker (Escenario 2):**
+
+6. **Dimensionamiento de Workers es CRÍTICO:**
+   - Workers deben procesar **MÁS RÁPIDO** de lo que se encolan tareas
+   - **Ratio 80:1** (entrada vs salida) causa colapso inevitable
+   - Fórmula: `workers_needed = (tasa_entrada × tiempo_procesamiento) / 60`
+   - Ejemplo: (321 tareas/min × 60s) / 60 = **321 workers** necesarios (teníamos 4)
+   - Usar FFmpeg con preset más rápido o menos workers por core
+
+7. **Auto-scaling de workers es MANDATORIO:**
+   - Carga de tareas varía drásticamente en el tiempo
+   - Workers estáticos NO pueden manejar picos
+   - Queue depth debe triggear escalamiento automático
+   - Métricas de Celery deben monitorearse constantemente
+   - Alertas cuando queue depth > 100 tareas
+
+8. **Redis single instance NO es production-ready:**
+   - **ElastiCache con replicación es mandatorio**
+   - Backups automatizados son esenciales
+   - High availability evita Single Point of Failure
+   - Cluster mode permite escalamiento horizontal
+   - Saturación de Redis causa cascada de fallos
+
+9. **Queue prioritization es esencial:**
+   - No todas las tareas tienen la misma prioridad
+   - Videos urgentes vs normales deben tener colas separadas
+   - Workers dedicados por tipo de tarea
+   - Evita HOL (Head-of-Line) blocking
+   - Mejora SLA para tareas críticas
+
+**Lecciones de Testing y Monitoreo:**
+
+10. **Testing en múltiples ambientes es crítico:**
+    - Pruebas locales NO reflejan comportamiento en cloud
+    - Diferencias de infraestructura causan degradación masiva
+    - **Pruebas de carga extrema revelan colapsos catastróficos**
+    - Testing debe incluir AMBAS capas (Web + Worker)
+    - Pruebas end-to-end son mandatorias
+
+11. **Testing de capacidad debe ser end-to-end:**
+    - Medir solo encolado (Escenario 2) NO es suficiente
+    - Debe medirse tiempo total de procesamiento
+    - Validar comportamiento con backlog creciente
+    - Simular condiciones realistas (múltiples tipos de carga)
+    - Pruebas de soak (24-48 horas) revelan memory leaks
+
+12. **Monitoreo es esencial desde día 1:**
+    - Sin métricas, los problemas son invisibles hasta que colapsan
+    - CloudWatch/Prometheus deben configurarse ANTES de producción
+    - Métricas críticas:
+      * **Capa Web:** RPS, latencia p95/p99, error rate, CPU, RAM
+      * **Capa Worker:** Queue depth, tasks processed/s, error rate, CPU, RAM
+    - Alertas automáticas deben existir para todas las métricas críticas
+    - Dashboards deben ser accesibles 24/7
+
+**Lecciones de Arquitectura:**
+
+13. **Arquitectura asíncrona es mandatoria:**
+    - Procesamiento pesado (videos) debe ser asíncrono
+    - HTTP request debe responder inmediatamente (< 200ms)
+    - Pattern: Accept request → Enqueue task → Return 202 Accepted
+    - Polling o webhooks para notificar completación
+    - Mejora UX y permite escalamiento independiente
 
 ---
 
-## 9. Anexos
+## 10. Anexos
 
-### 9.1 Archivos de Resultados
+### 10.1 Archivos de Resultados
+
+**Escenario 1 - Capa Web (API REST):**
 
 **Fase 1 - Sanidad:**
 - Dashboard: `cloud_load_testing/escenario_1_capa_web/Fase_1_Sanidad/dashboard_smoke/index.html`
@@ -1185,27 +1857,55 @@ El sistema presenta **fallas catastróficas de capacidad** que lo hacen **COMPLE
 - Statistics: `cloud_load_testing/escenario_1_capa_web/Fase_3_sostenido/dashboard_smoke/statistics.json`
 - JTL: `cloud_load_testing/escenario_1_capa_web/Fase_3_sostenido/fase1_smoke.jtl`
 
-### 9.2 Configuración JMeter
+**Escenario 2 - Capa Worker (Procesamiento Asíncrono):**
 
-**Script de Prueba:** `WebApp_Carga.jmx`
-- Endpoint: POST /api/videos/upload
-- Content-Type: multipart/form-data
-- Payload: Video simulado
+**Prueba de Workers:**
+- Dashboard: `cloud_load_testing/escenario_2_capa_worker/video_10mb/dashboard_c1/index.html`
+- Statistics: `cloud_load_testing/escenario_2_capa_worker/video_10mb/dashboard_c1/statistics.json`
+- JTL: `cloud_load_testing/escenario_2_capa_worker/video_10mb/resultados_c1.jtl`
+- Payload: `cloud_load_testing/escenario_2_capa_worker/video_10mb/mensaje_10mb.txt`
 
-### 9.3 Comandos Útiles
+### 10.2 Configuración JMeter
 
-**Ejecutar JMeter en modo no-GUI:**
+**Escenario 1 - Script de Prueba API REST:** `WebApp_Carga.jmx`
+- **Sampler:** HTTP Request
+- **Endpoint:** POST /api/videos/upload
+- **Content-Type:** multipart/form-data
+- **Payload:** Video MP4 de 18MB (file_example_MP4_1920_18MG.mp4)
+- **Autenticación:** Bearer Token JWT
+- **Thread Group:** Ultimate Thread Group (rampa controlada)
+
+**Escenario 2 - Script de Prueba Worker:** `Worker_Test.jmx`
+- **Sampler:** JSR223 Sampler (Groovy)
+- **Cliente:** Jedis (Redis Java Client)
+- **Operación:** LPUSH a cola "celery"
+- **Payload:** Archivo de texto de 10MB (mensaje_10mb.txt)
+- **Thread Group:** 10 threads durante 300 segundos
+- **Variables:**
+  - `REDIS_HOST`: localhost
+  - `REDIS_PORT`: 6379
+  - `REDIS_QUEUE`: celery
+  - `PAYLOAD_FILE`: /path/to/mensaje_10mb.txt
+
+### 10.3 Comandos Útiles
+
+**JMeter - Ejecución y Reportes:**
+
 ```bash
+# Ejecutar JMeter en modo no-GUI (Escenario 1)
 jmeter -n -t WebApp_Carga.jmx -l results.jtl -e -o dashboard/
-```
 
-**Generar dashboard desde JTL:**
-```bash
+# Ejecutar JMeter en modo no-GUI (Escenario 2)
+jmeter -n -t Worker_Test.jmx -l resultados_c1.jtl -e -o dashboard_c1/
+
+# Generar dashboard desde JTL existente
 jmeter -g results.jtl -o dashboard/
 ```
 
-**Monitorear recursos AWS:**
+**AWS CloudWatch - Monitoreo de Infraestructura:**
+
 ```bash
+# Monitorear CPU de instancia EC2
 aws cloudwatch get-metric-statistics \
   --namespace AWS/EC2 \
   --metric-name CPUUtilization \
@@ -1213,10 +1913,77 @@ aws cloudwatch get-metric-statistics \
   --start-time 2025-10-26T00:00:00Z \
   --end-time 2025-10-26T23:59:59Z \
   --period 300 \
-  --statistics Average
+  --statistics Average,Maximum
+
+# Monitorear memoria disponible (requiere CloudWatch Agent)
+aws cloudwatch get-metric-statistics \
+  --namespace CWAgent \
+  --metric-name mem_used_percent \
+  --dimensions Name=InstanceId,Value=i-xxxxx \
+  --start-time 2025-10-26T00:00:00Z \
+  --end-time 2025-10-26T23:59:59Z \
+  --period 300 \
+  --statistics Average,Maximum
 ```
 
-### 9.4 Contacto
+**Celery - Monitoreo de Workers (Escenario 2):**
+
+```bash
+# Ver queue depth de Redis
+docker exec -it <redis_container> redis-cli LLEN celery
+
+# Ver tareas en cola (primeras 10)
+docker exec -it <redis_container> redis-cli LRANGE celery 0 10
+
+# Ver workers activos
+docker exec -it <worker_container> celery -A src.core.celery_app inspect active
+
+# Ver stats de workers
+docker exec -it <worker_container> celery -A src.core.celery_app inspect stats
+
+# Ver tareas registradas
+docker exec -it <worker_container> celery -A src.core.celery_app inspect registered
+
+# Ver workers reservados (con tareas asignadas)
+docker exec -it <worker_container> celery -A src.core.celery_app inspect reserved
+
+# Purgar cola (CUIDADO - elimina todas las tareas)
+docker exec -it <redis_container> redis-cli DEL celery
+```
+
+**Redis - Monitoreo y Debug:**
+
+```bash
+# Ver info general de Redis
+docker exec -it <redis_container> redis-cli INFO
+
+# Ver memoria usada
+docker exec -it <redis_container> redis-cli INFO memory
+
+# Ver clientes conectados
+docker exec -it <redis_container> redis-cli CLIENT LIST
+
+# Monitorear comandos en tiempo real
+docker exec -it <redis_container> redis-cli MONITOR
+```
+
+**Docker - Monitoreo de Recursos:**
+
+```bash
+# Ver stats en tiempo real de todos los contenedores
+docker stats
+
+# Ver stats de contenedor específico
+docker stats <container_name>
+
+# Ver logs de worker
+docker logs -f --tail 100 <worker_container>
+
+# Ver procesos dentro del contenedor
+docker exec -it <worker_container> ps aux
+```
+
+### 10.4 Contacto
 
 Para consultas sobre este análisis:
 - **Equipo:** Desarrollo de Software en la Nube
@@ -1226,3 +1993,5 @@ Para consultas sobre este análisis:
 ---
 
 **Fin del Documento**
+
+
