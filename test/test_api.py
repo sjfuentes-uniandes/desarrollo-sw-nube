@@ -1769,3 +1769,212 @@ class TestVotes:
         # Verificar el mensaje
         message = response.json()
         assert message["detail"] == "Video not found"
+class TestVideoRouterCoverage:
+    """Tests adicionales para mejorar cobertura de video_router"""
+    
+    def test_ensure_upload_dir_function(self):
+        """Test: Función ensure_upload_dir"""
+        from src.routers.video_router import ensure_upload_dir
+        
+        # No debe lanzar excepción
+        ensure_upload_dir()
+    
+    @patch('src.routers.video_router.process_video_task.delay')
+    def test_upload_video_file_cleanup_on_exception(self, mock_task, client, auth_headers):
+        """Test: Limpieza de archivos cuando ocurre excepción después de guardar"""
+        mock_task.side_effect = Exception("Task error")
+        
+        video_file = BytesIO(b"video content")
+        
+        response = client.post(
+            "/api/videos/upload",
+            headers=auth_headers,
+            files={"video_file": ("test.mp4", video_file, "video/mp4")},
+            data={"title": "Test"}
+        )
+        
+        assert response.status_code == 500
+        assert "Error al subir el video" in response.json()["detail"]
+    
+    def test_list_videos_database_exception(self, client, auth_headers):
+        """Test: Excepción en base de datos al listar videos"""
+        with patch('src.routers.video_router.get_db') as mock_get_db:
+            mock_db = Mock()
+            mock_db.query.side_effect = Exception("Database error")
+            mock_get_db.return_value.__enter__.return_value = mock_db
+            
+            response = client.get("/api/videos", headers=auth_headers)
+            
+            assert response.status_code == 500
+            assert "Error al obtener la lista de videos" in response.json()["detail"]
+    
+    def test_get_votes_by_video_id_function(self):
+        """Test: Función get_votes_by_video_id directamente"""
+        from src.routers.video_router import get_votes_by_video_id
+        
+        db = TestingSessionLocal()
+        user = create_test_user(db)
+        video = create_test_video(db, user)
+        
+        result = get_votes_by_video_id(video.id, db)
+        
+        assert result["video_id"] == video.id
+        assert result["votes_count"] == 0
+        
+        db.close()
+    
+    def test_get_votes_by_video_id_not_found(self):
+        """Test: get_votes_by_video_id con video inexistente"""
+        from src.routers.video_router import get_votes_by_video_id
+        
+        db = TestingSessionLocal()
+        
+        with pytest.raises(HTTPException) as exc_info:
+            get_votes_by_video_id(999, db)
+        
+        assert exc_info.value.status_code == 404
+        assert "Video not found" in str(exc_info.value.detail)
+        
+        db.close()
+    
+    @patch('src.routers.video_router.process_video_task.delay')
+    def test_upload_video_ensure_upload_dir_called(self, mock_task, client, auth_headers):
+        """Test: ensure_upload_dir es llamada durante upload"""
+        mock_task.return_value = Mock(id="task-123")
+        
+        with patch('src.routers.video_router.ensure_upload_dir') as mock_ensure:
+            video_file = BytesIO(b"video content")
+            
+            response = client.post(
+                "/api/videos/upload",
+                headers=auth_headers,
+                files={"video_file": ("test.mp4", video_file, "video/mp4")},
+                data={"title": "Test"}
+            )
+            
+            assert response.status_code == 201
+            mock_ensure.assert_called_once()
+    
+    def test_delete_video_file_removal_error(self, client, auth_headers):
+        """Test: Error al eliminar archivos físicos no debe fallar la operación"""
+        db = TestingSessionLocal()
+        
+        # Crear video en BD
+        user_data = db.query(User).filter(User.email == "test@example.com").first()
+        video = Video(
+            title="Test Video",
+            status=VideoStatus.uploaded,
+            user_id=user_data.id,
+            original_url="/fake/path/video.mp4",
+            processed_url="/fake/path/processed.mp4"
+        )
+        db.add(video)
+        db.commit()
+        db.refresh(video)
+        video_id = video.id
+        db.close()
+        
+        # Mock para simular error al eliminar archivos
+        with patch('aiofiles.os.remove', side_effect=Exception("File error")):
+            response = client.delete(f"/api/videos/{video_id}", headers=auth_headers)
+            
+            assert response.status_code == 200
+            assert "eliminado exitosamente" in response.json()["message"]
+
+class TestAuthRouterCoverage:
+    """Tests adicionales para auth_router"""
+    
+    def test_verify_token_invalid_jwt(self, client):
+        """Test: Token JWT inválido"""
+        from src.routers.auth_router import verify_token
+        from fastapi.security import HTTPAuthorizationCredentials
+        
+        db = TestingSessionLocal()
+        credentials = HTTPAuthorizationCredentials(
+            scheme="Bearer",
+            credentials="invalid.jwt.token"
+        )
+        
+        with pytest.raises(HTTPException) as exc_info:
+            # Usar asyncio para llamar la función async
+            import asyncio
+            asyncio.run(verify_token(credentials, db))
+        
+        assert exc_info.value.status_code == 401
+        db.close()
+    
+    def test_verify_token_user_not_found(self, client):
+        """Test: Usuario no encontrado en token válido"""
+        from src.routers.auth_router import verify_token
+        from fastapi.security import HTTPAuthorizationCredentials
+        from src.core.security import SECRET_KEY, ALGORITHM
+        import jwt
+        from datetime import datetime, timedelta, timezone
+        
+        # Crear token con user_id inexistente
+        expires_delta = timedelta(minutes=30)
+        access_token_data = {
+            'sub': '99999',  # Usuario inexistente
+            'exp': datetime.now(timezone.utc) + expires_delta
+        }
+        token = jwt.encode(access_token_data, SECRET_KEY, algorithm=ALGORITHM)
+        
+        db = TestingSessionLocal()
+        credentials = HTTPAuthorizationCredentials(
+            scheme="Bearer",
+            credentials=token
+        )
+        
+        # El verify_token debería retornar None si no encuentra el usuario
+        import asyncio
+        result = asyncio.run(verify_token(credentials, db))
+        
+        assert result is None
+        db.close()
+
+class TestPublicRouterCoverage:
+    """Tests adicionales para public_router"""
+    
+    def test_list_public_videos_exception_handling(self, client):
+        """Test: Manejo de excepciones en list_public_videos"""
+        with patch('src.routers.public_router.get_db') as mock_get_db:
+            mock_db = Mock()
+            mock_db.query.side_effect = Exception("Database error")
+            mock_get_db.return_value.__enter__.return_value = mock_db
+            
+            response = client.get("/api/public/videos")
+            
+            assert response.status_code == 500
+            assert "Error al obtener la lista de videos públicos" in response.json()["detail"]
+    
+    def test_rankings_exception_handling(self, client):
+        """Test: Manejo de excepciones en rankings"""
+        with patch('src.routers.public_router.get_db') as mock_get_db:
+            mock_db = Mock()
+            mock_db.query.side_effect = Exception("Database error")
+            mock_get_db.return_value.__enter__.return_value = mock_db
+            
+            response = client.get("/api/public/rankings")
+            
+            assert response.status_code == 400
+            assert "Parámetro inválido en la consulta" in response.json()["detail"]
+    
+    def test_vote_integrity_error_handling(self, client):
+        """Test: Manejo de IntegrityError en votos"""
+        db = TestingSessionLocal()
+        user = create_test_user(db)
+        video = create_test_video(db, user)
+        headers = auth_header(client, user.email)
+        
+        # Simular IntegrityError
+        with patch('src.routers.public_router.Vote') as mock_vote_class:
+            mock_vote = Mock()
+            mock_vote_class.return_value = mock_vote
+            
+            with patch.object(db, 'add'):
+                with patch.object(db, 'commit', side_effect=Exception("Integrity error")):
+                    response = client.post(f"/api/public/videos/{video.id}/vote", headers=headers)
+                    
+                    assert response.status_code == 500
+        
+        db.close()
