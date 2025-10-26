@@ -10,8 +10,8 @@ from src.db.database import SessionLocal
 from src.models.db_models import Video, VideoStatus
 
 # Variables de entorno para carpetas
-UPLOADS_DIR = os.getenv("UPLOADS_DIR", "/home/ubuntu/app/uploads")
-PROCESSED_DIR = os.getenv("PROCESSED_DIR", "/home/ubuntu/app/processed")
+UPLOADS_DIR = os.getenv("UPLOADS_DIR", "./uploads")
+PROCESSED_DIR = os.getenv("PROCESSED_DIR", "./processed")
 
 
 class DatabaseTask(Task):

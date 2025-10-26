@@ -21,8 +21,15 @@ from typing import List
 video_router = APIRouter(tags=["Videos"])
 
 # Configuración de directorios
-UPLOAD_DIR = Path(os.getenv("UPLOADS_DIR", "/app/uploads"))
-UPLOAD_DIR.mkdir(exist_ok=True)
+UPLOAD_DIR = Path(os.getenv("UPLOADS_DIR", "./uploads"))
+
+def ensure_upload_dir():
+    """Crear directorio de uploads si no existe"""
+    try:
+        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    except (OSError, PermissionError):
+        # En entornos de testing o read-only, ignorar el error
+        pass
 
 # Constantes
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB en bytes
