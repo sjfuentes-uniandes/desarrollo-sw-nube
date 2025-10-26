@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="Escenario_2_worker">
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+        <collectionProp name="Arguments.arguments"/>
+      </elementProp>
+      <boolProp name="TestPlan.functional_mode">false</boolProp>
+      <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
+    </TestPlan>
+    <hashTree>
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Thread Group">
+        <intProp name="ThreadGroup.num_threads">10</intProp>
+        <intProp name="ThreadGroup.ramp_time">1</intProp>
+        <longProp name="ThreadGroup.duration">300</longProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <intProp name="LoopController.loops">-1</intProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
+      </ThreadGroup>
+      <hashTree>
+        <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+          <collectionProp name="Arguments.arguments">
+            <elementProp name="REDIS_HOST" elementType="Argument">
+              <stringProp name="Argument.name">REDIS_HOST</stringProp>
+              <stringProp name="Argument.value">localhost</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+            <elementProp name="REDIS_PORT" elementType="Argument">
+              <stringProp name="Argument.name">REDIS_PORT</stringProp>
+              <stringProp name="Argument.value">6379</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+            <elementProp name="REDIS_QUEUE" elementType="Argument">
+              <stringProp name="Argument.name">REDIS_QUEUE</stringProp>
+              <stringProp name="Argument.value">celery</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+            <elementProp name="PAYLOAD_FILE" elementType="Argument">
+              <stringProp name="Argument.name">PAYLOAD_FILE</stringProp>
+              <stringProp name="Argument.value">/Volumes/Datos/miso-projects/Semestre II/plan_de_pruebas_web/mensaje_10mb.txt</stringProp>
+              <stringProp name="Argument.metadata">=</stringProp>
+            </elementProp>
+          </collectionProp>
+        </Arguments>
+        <hashTree/>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="JSR223 Sampler">
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="script">import redis.clients.jedis.Jedis
+import java.nio.file.Files
+import java.nio.file.Paths
+
+// Obtener variables de JMeter
+String host = vars.get(&quot;REDIS_HOST&quot;)
+int port = vars.get(&quot;REDIS_PORT&quot;).toInteger()
+String queue = vars.get(&quot;REDIS_QUEUE&quot;)
+String payloadPath = vars.get(&quot;PAYLOAD_FILE&quot;)
+
+Jedis jedis = null
+
+try {
+    // 1. Leer el archivo del payload
+    // Hacemos esto dentro del try para que el sampler falle si no encuentra el archivo
+    String payload = new String(Files.readAllBytes(Paths.get(payloadPath)))
+
+    // 2. Conectar a Redis
+    jedis = new Jedis(host, port)
+    
+    // 3. Ejecutar el comando LPUSH
+    jedis.lpush(queue, payload)
+
+    // 4. Reportar éxito a JMeter
+    SampleResult.setSuccessful(true)
+    SampleResult.setResponseCodeOK()
+    SampleResult.setResponseMessage(&quot;OK - LPUSHed to &quot; + queue)
+
+} catch (Exception e) {
+    // 5. Reportar falla a JMeter
+    SampleResult.setSuccessful(false)
+    SampleResult.setResponseCode(&quot;500&quot;)
+    SampleResult.setResponseMessage(&quot;Error: &quot; + e.getMessage())
+    log.error(&quot;JSR223 Redis Error: &quot;, e)
+} finally {
+    // 6. Cerrar la conexión
+    if (jedis != null) {
+        jedis.close()
+    }
+}</stringProp>
+          <stringProp name="scriptLanguage">groovy</stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+      </hashTree>
+      <ResultCollector guiclass="SummaryReport" testclass="ResultCollector" testname="Summary Report" enabled="true">
+        <boolProp name="ResultCollector.error_logging">false</boolProp>
+        <objProp>
+          <name>saveConfig</name>
+          <value class="SampleSaveConfiguration">
+            <time>true</time>
+            <latency>true</latency>
+            <timestamp>true</timestamp>
+            <success>true</success>
+            <label>true</label>
+            <code>true</code>
+            <message>true</message>
+            <threadName>true</threadName>
+            <dataType>true</dataType>
+            <encoding>false</encoding>
+            <assertions>true</assertions>
+            <subresults>true</subresults>
+            <responseData>false</responseData>
+            <samplerData>false</samplerData>
+            <xml>false</xml>
+            <fieldNames>true</fieldNames>
+            <responseHeaders>false</responseHeaders>
+            <requestHeaders>false</requestHeaders>
+            <responseDataOnError>false</responseDataOnError>
+            <saveAssertionResultsFailureMessage>true</saveAssertionResultsFailureMessage>
+            <assertionsResultsToSave>0</assertionsResultsToSave>
+            <bytes>true</bytes>
+            <sentBytes>true</sentBytes>
+            <url>true</url>
+            <threadCounts>true</threadCounts>
+            <idleTime>true</idleTime>
+            <connectTime>true</connectTime>
+          </value>
+        </objProp>
+        <stringProp name="filename"></stringProp>
+      </ResultCollector>
+      <hashTree/>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>
