@@ -3,8 +3,10 @@
 ## Tabla de Contenidos
 1. [Arquitectura y Tecnologías](#arquitectura-y-tecnologías)
 2. [Arquitectura AWS](#Arquitectura-AWS)
-3. [Integraciones](#integraciones)
-4. [Sustentación](#sustentación)
+3. [Cambio realizados](#Cambios-Realizados)
+3. [Pruebas de carga](#Pruebas-de-Capacidad)
+4. [Integraciones](#integraciones)
+5. [Sustentación](#sustentación)
 
 
 ## Arquitectura y Tecnologías
@@ -75,28 +77,35 @@ Además para el caso de la base de datos, solo se mantiene activa durante el usa
 ### Manejo de credenciales
 Se utilizaron AWS Secrets Manager para el manejo de credenciales de la base de datos y otros servicios, evitando así almacenar credenciales sensibles directamente en el código fuente.
 
+## Cambios Realizados
+
+### Código de la Aplicación
+- **Variables de entorno para directorios**: Se agregaron variables `UPLOADS_DIR` y `PROCESSED_DIR` en `video_tasks.py` para configurar las rutas de archivos de manera flexible
+- **Manejo de directorios**: Se implementó la función `ensure_upload_dir()` en `video_router.py` para crear directorios de forma segura, evitando errores en entornos de solo lectura
+- **Configuración de recursos**: Se ajustaron los límites de CPU y memoria en los archivos Docker Compose para optimizar el rendimiento
+
+### Pruebas Unitarias
+- **Mocks para archivos**: Se agregaron mocks de `os.path.exists` en todos los tests de `TestProcessVideoTask` para simular la existencia de archivos
+- **Corrección de expectativas**: Se actualizaron las expectativas de los tests para usar `"./processed"` en lugar de `"processed"` para coincidir con las rutas reales
+- **Manejo de errores**: Se mejoró el manejo de errores en los tests para casos donde los archivos no existen
+
+### Separación de Docker Compose
+- **docker-compose.web.yml**: Archivo dedicado para el servidor web con configuración específica de recursos (1.5 CPU, 1.7G RAM)
+- **docker-compose.worker.yml**: Archivo dedicado para los workers de Celery con configuración optimizada para procesamiento (1.5 CPU, 1.7G RAM)
+- **Despliegue independiente**: Permite escalar web servers y workers de forma independiente según las necesidades de carga
+
+
 ## Pruebas de Capacidad
 
-#### `load_testing/`
-Infraestructura completa para pruebas de capacidad y observabilidad:
-- **Locust**: Generador de carga para simular usuarios concurrentes
-- **Prometheus**: Recolección de métricas del sistema (CPU, memoria, conexiones)
-- **Grafana**: Visualización de métricas en tiempo real
-- **Scripts automatizados**: Ejecución de pruebas y gestión de observabilidad
-- **Resultados**: CSV con métricas de 5 pruebas ejecutadas
+#### `cloud_load_testing/`
+
 
 #### `capacity_planning/`
-Documentación detallada del Escenario 1 (Capacidad Capa Web):
-- **Plan de pruebas completo**: 2,000+ líneas con metodología, resultados y análisis
-- **Capacidad máxima identificada**: 100 usuarios @ 18.84 RPS
-- **Zona segura sostenida**: 80 usuarios @ 18.63 RPS (validado 5 minutos)
-- **5 Bottlenecks identificados**: Con severidad y soluciones propuestas
-- **Curvas de rendimiento**: Análisis de degradación y puntos de quiebre
+
 
 
 
 ## Integraciones
 
 #### Reporte de Análisis de SonarQube
-![Summary SonarQube](../images/Sonarqube_summary.png)
-![Reporte SonarQube](../images/sonar_report.png)
+![Reporte SonarQube](../images/Sonar_entrega_2.png)
