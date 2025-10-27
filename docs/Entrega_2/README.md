@@ -96,10 +96,29 @@ Se utilizaron AWS Secrets Manager para el manejo de credenciales de la base de d
 
 ## Pruebas de Capacidad
 
-#### `cloud_load_testing/`
+### `cloud_load_testing/`
+Contiene los resultados de las pruebas de carga ejecutadas en AWS, organizados en dos escenarios:
 
+- **`escenario_1_capa_web/`**: Resultados de pruebas de capacidad de la API REST (FastAPI + Nginx)
+  - `Fase_1_Sanidad/`: Prueba inicial con 100 usuarios
+  - `Fase_2_escalamiento_fail/`: Pruebas de escalamiento (200-300 usuarios) - punto de colapso
+  - `Fase_3_sostenido/`: Pruebas de carga sostenida
+  - Cada fase incluye: archivos `.jmx`, dashboards HTML, datos `.jtl`, y `statistics.json`
 
-#### `capacity_planning/`
+- **`escenario_2_capa_worker/`**: Resultados de pruebas de procesamiento asíncrono (Celery + Redis)
+  - `Escenario_2_worker.jmx`: Script JMeter con configuración JSR223/Groovy
+  - `video_10mb/`: Resultados con payload de 10MB, dashboard HTML y estadísticas de cola
+
+### `capacity_planning/`
+Contiene la documentación y planificación de las pruebas de capacidad:
+
+- **`plan_de_pruebas.md`**: Plan detallado de pruebas con escenarios, métricas objetivo y criterios de aceptación
+- **`pruebas_de_carga_entrega2.md`**: Documentación completa del análisis de pruebas en AWS
+  - Escenario 1 - Capa Web: Análisis de 4 fases de prueba de la API REST
+  - Escenario 2 - Capa Worker: Análisis de capacidad de procesamiento asíncrono
+  - Cuellos de botella identificados y recomendaciones de escalamiento
+  - Plan de acción para producción
+- **`graficos/`**: Gráficos de rendimiento generados de las pruebas
 
 
 

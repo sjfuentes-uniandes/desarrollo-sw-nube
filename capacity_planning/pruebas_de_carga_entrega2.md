@@ -133,10 +133,11 @@ El análisis cubre **DOS escenarios** de pruebas de capacidad:
 ### 2.1 Infraestructura AWS
 
 **Instancia EC2:**
-- **Tipo:** t2.micro
-- **vCPUs:** 1 vCPU
-- **Memoria RAM:** 1 GB
-- **Sistema Operativo:** Ubuntu Server (estimado)
+- **Tipo:** t2.small
+- **vCPUs:** 2 vCPUs
+- **Memoria RAM:** 2 GiB
+- **Almacenamiento:** 50 GB
+- **Sistema Operativo:** Ubuntu
 - **Región:** us-east-1 (inferido por IP)
 
 **Servicios Desplegados:**
@@ -216,36 +217,37 @@ fastapi:
 
 **Amazon EC2 - Instancia de Aplicación:**
 - **IP Pública:** 3.87.68.214 (Fase 2) / 98.94.34.243 (Fase 3)
-- **Tipo de Instancia:** t2.micro
-- **vCPUs:** 1 vCPU (hasta 3.3 GHz Intel Xeon)
-- **Memoria:** 1 GB RAM
-- **Sistema Operativo:** Ubuntu Server (inferido)
+- **Tipo de Instancia:** t2.small
+- **vCPUs:** 2 vCPUs (hasta 3.3 GHz Intel Xeon)
+- **Memoria:** 2 GiB RAM
+- **Almacenamiento:** 50 GB
+- **Sistema Operativo:** Ubuntu
 - **Red:** Variable bandwidth (créditos de red)
 
 **⚠️ ANÁLISIS CRÍTICO DE RECURSOS:**
 
-La instancia **t2.micro** es la instancia **más pequeña y limitada** del catálogo de AWS:
+La instancia **t2.small** con 2 vCPUs y 2 GiB RAM sigue siendo **limitada** para la carga de la aplicación:
 
-| Recurso | t2.micro | Requisito Mínimo App | Déficit |
+| Recurso | t2.small | Requisito Mínimo App | Déficit |
 |---------|----------|----------------------|---------|
-| **vCPU** | 1 core | 4+ cores | **-75%** 🔴 |
-| **RAM** | 1 GB | 4+ GB | **-75%** 🔴 |
-| **Servicios** | 5 contenedores | Max 2-3 | **Sobrecarga +150%** 🔴 |
+| **vCPU** | 2 cores | 4+ cores | **-50%** 🔴 |
+| **RAM** | 2 GiB | 4+ GiB | **-50%** 🔴 |
+| **Servicios** | 5 contenedores | Max 3-4 | **Sobrecarga +25%** � |
 
-**Servicios Desplegados en 1 GB de RAM:**
-1. FastAPI (limit: 1.7GB - **EXCEDE RAM disponible**)
+**Servicios Desplegados en 2 GiB de RAM:**
+1. FastAPI (limit: 1.7GB - **AJUSTADO pero limitado**)
 2. Nginx (~50-100 MB)
 3. PostgreSQL (~200-500 MB con conexiones)
 4. Redis (~50-100 MB)
 5. Celery Worker + FFmpeg (~500 MB - 2GB durante procesamiento)
 
-**Total estimado:** ~3-5 GB **vs** 1 GB disponible = **Déficit de 2-4 GB**
+**Total estimado:** ~3-5 GiB **vs** 2 GiB disponible = **Déficit de 1-3 GiB**
 
-**Implicación:** El sistema está en **constante thrashing** (swap de memoria), causando:
+**Implicación:** El sistema puede experimentar **presión de memoria** (swap), causando:
 - ✅ Explica latencias de 40-257 segundos
 - ✅ Explica colapso con 200-300 usuarios
-- ✅ Explica OOM Killer matando procesos
-- ✅ Explica reinicio forzado de instancia
+- ✅ Explica posibles OOM Killer matando procesos
+- ✅ Explica degradación bajo carga
 
 **Servicios Desplegados en Docker:**
 ```yaml
@@ -756,7 +758,7 @@ worker:
 **Posibles Causas:**
 - ✅ **Redis saturado** - No acepta más conexiones
 - ✅ **Jedis (cliente) falla** - Timeouts de conexión
-- ✅ **Red saturada** - Ancho de banda limitado de t2.micro
+- ✅ **Red saturada** - Ancho de banda limitado de t2.small
 - ✅ **Memoria de Redis agotada** - No puede almacenar más mensajes
 - ✅ **CPU de EC2 al 100%** - Redis no puede responder a tiempo
 
@@ -812,31 +814,31 @@ Hipótesis: Timeout de conexión = 2 segundos
 
 ### 5.3 Análisis de Causas Raíz
 
-#### 5.3.1 Sobrecarga de Instancia t2.micro
+#### 5.3.1 Sobrecarga de Instancia t2.small
 
 **Recursos Consumidos Durante la Prueba:**
 
 ```
-CPU Usage (estimado):
-  - Celery Worker (4 workers): 40-60%
-  - FFmpeg (si procesa videos): 80-100% (picos)
-  - Redis: 10-20%
+CPU Usage (estimado con 2 vCPUs disponibles):
+  - Celery Worker (4 workers): 60-80%
+  - FFmpeg (si procesa videos): 90-100% (picos)
+  - Redis: 10-15%
   - PostgreSQL: 5-10%
-  - Sistema: 10%
-  TOTAL: 145-200% → EXCEDE 100% disponible
+  - Sistema: 5-10%
+  TOTAL: 170-215% → EXCEDE 200% disponible (2 vCPUs)
 
-Memoria Usage (estimado):
+Memoria Usage (estimado con 2 GiB disponibles):
   - Celery Worker: 500 MB - 1 GB
   - FFmpeg: 500 MB - 2 GB (picos)
   - Redis: 100-500 MB (según queue depth)
   - PostgreSQL: 200 MB
   - Sistema: 300 MB
-  TOTAL: 1.6 - 4.0 GB → EXCEDE 1 GB disponible
+  TOTAL: 1.6 - 4.0 GiB → EXCEDE 2 GiB disponibles
 ```
 
-**⚠️ ANÁLISIS CRÍTICO - Sobrecarga Extrema:**
+**⚠️ ANÁLISIS CRÍTICO - Sobrecarga Significativa:**
 
-La instancia **t2.micro** ahora debe ejecutar **MÁS servicios** que en Escenario 1:
+La instancia **t2.small** ahora debe ejecutar **MÁS servicios** que en Escenario 1:
 
 | Servicio | Memoria Estimada | CPU Estimada | Estado |
 |----------|-----------------|--------------|--------|
@@ -848,7 +850,7 @@ La instancia **t2.micro** ahora debe ejecutar **MÁS servicios** que en Escenari
 | **Nginx** | 50 MB | 0.1 vCPU | ✅ |
 | **Sistema Operativo** | 300 MB | 0.2 vCPU | ✅ |
 
-**Total estimado:** **4-6 GB RAM** **vs** 1 GB disponible = **Déficit de 3-5 GB**
+**Total estimado:** **4-6 GiB RAM** **vs** 2 GiB disponibles = **Déficit de 2-4 GiB**
 
 **Consecuencia:** Sistema en **swap constante**, causando latencias de 2+ segundos.
 
@@ -890,7 +892,7 @@ worker:
 ```
 
 **Análisis:**
-- **4 workers concurrentes** en instancia de **1 vCPU**
+- **4 workers concurrentes** en instancia de **2 vCPUs**
 - Cada worker puede procesar **1 tarea a la vez**
 - Con **FFmpeg**, cada tarea puede tomar **30-120 segundos** (video processing)
 
@@ -957,14 +959,14 @@ Ratio: 321 / 4 = 80x MÁS RÁPIDO encolando que procesando
 | **Throughput** | 0.12-0.30 req/s | 5.35 ops/s | +1,683% 🟢 |
 | **Latencia Promedio** | 40-257 segundos | 1.87 segundos | -95% 🟢 |
 | **Tipo de Falla** | Timeout HTTP, colapso EC2 | Timeout Redis, saturación de cola |  |
-| **Causa Raíz Principal** | t2.micro inadecuada, 1 worker Uvicorn | t2.micro inadecuada, workers muy lentos vs tasa entrada |  |
-| **Punto de Colapso** | 200-300 usuarios (instancia caída) | 5.35 tareas/s (Redis saturado) |  |
+| **Causa Raíz Principal** | t2.small inadecuada, 1 worker Uvicorn | t2.small inadecuada, workers muy lentos vs tasa entrada |  |
+| **Punto de Colapso** | 200-300 usuarios (instancia degradada) | 5.35 tareas/s (Redis saturado) |  |
 
 **Observaciones Clave:**
 - El **Escenario 2 tiene mejor latencia** (1.87s vs 40-257s) porque solo mide **encolado**, no procesamiento completo
 - El **throughput es mayor** (5.35 vs 0.12-0.30) porque LPUSH es más rápido que HTTP POST
-- Ambos escenarios **fallan catastróficamente** debido a la **instancia t2.micro inadecuada**
-- **Ambos comparten la misma causa raíz:** Recursos insuficientes
+- Ambos escenarios **fallan catastróficamente** debido a la **instancia t2.small inadecuada**
+- **Ambos comparten la misma causa raíz:** Recursos insuficientes (CPU y RAM)
 
 **Conclusión Escenario 2:**
 
@@ -1013,41 +1015,41 @@ Esta sección consolida los bottlenecks identificados en **AMBOS escenarios** (C
 
 ---
 
-### 6.2 Bottleneck #1: Instancia t2.micro Completamente Inadecuada (CRÍTICO)
+### 6.2 Bottleneck #1: Instancia t2.small Inadecuada para la Carga (CRÍTICO)
 
 **Afecta:** Ambos Escenarios (Web + Worker)
 
 **Evidencia - Escenario 1 (Capa Web):**
-- Instancia t2.micro: 1 vCPU, 1 GB RAM
-- Aplicación requiere: 4+ vCPUs, 4+ GB RAM
-- Déficit de recursos: -75% CPU, -75% RAM
-- Colapso con 200-300 usuarios (instancia caída)
+- Instancia t2.small: 2 vCPUs, 2 GiB RAM
+- Aplicación requiere: 4+ vCPUs, 4+ GiB RAM
+- Déficit de recursos: -50% CPU, -50% RAM
+- Colapso con 200-300 usuarios (instancia degradada)
 - Latencias inconsistentes (7s - 358s)
 
 **Evidencia - Escenario 2 (Capa Worker):**
 - 91.53% de tasa de error al encolar tareas
 - Redis saturado no acepta nuevas conexiones
 - Latencias de ~2 segundos (timeouts)
-- Workers + FFmpeg exceden 4x la memoria disponible
+- Workers + FFmpeg exceden 2x la memoria disponible
 
 **Causa Raíz:**
 ```yaml
 Recursos disponibles vs requeridos:
-  t2.micro disponible:
-    - 1 vCPU
-    - 1 GB RAM
+  t2.small disponible:
+    - 2 vCPUs
+    - 2 GiB RAM
   
   Aplicación requiere (FastAPI + Workers + FFmpeg):
     - CPU: 4+ vCPUs
-    - RAM: 4+ GB
+    - RAM: 4+ GiB
     
   Déficit: -75% CPU, -75% RAM
 ```
 
 **Análisis de Sobrecarga:**
 
-**Servicios corriendo en 1 GB RAM:**
-1. FastAPI: 1.7 GB configurado (límite) - **EXCEDE RAM TOTAL**
+**Servicios corriendo en 2 GiB RAM:**
+1. FastAPI: 1.7 GB configurado (límite) - **CASI TODO EL RAM**
 2. Celery Worker (4 workers): 500 MB - 1 GB
 3. FFmpeg (durante procesamiento): 500 MB - 2 GB (picos)
 4. PostgreSQL: ~300 MB (mínimo) + conexiones
@@ -1055,19 +1057,19 @@ Recursos disponibles vs requeridos:
 6. Nginx: ~50 MB
 7. Sistema Operativo: ~300 MB
 
-**Total:** 4-6 GB requerido **vs** 1 GB disponible = **Déficit de 3-5 GB**
+**Total:** 4-6 GiB requerido **vs** 2 GiB disponibles = **Déficit de 2-4 GiB**
 
 **Consecuencias Observadas:**
-- 🔴 **Memory Thrashing:** Sistema en swap constante (causa latencias de 40-257s en Escenario 1, 2s en Escenario 2)
-- 🔴 **OOM Killer:** Linux mata procesos aleatoriamente
-- 🔴 **CPU Throttling:** t2.micro con créditos CPU agotados
+- 🔴 **Memory Pressure:** Sistema con presión de memoria (causa latencias de 40-257s en Escenario 1, 2s en Escenario 2)
+- 🔴 **Posible OOM Killer:** Linux puede matar procesos bajo presión extrema
+- 🔴 **CPU Contention:** t2.small con 2 vCPUs insuficientes para 5+ servicios
 - 🔴 **Workers compiten por CPU** con FFmpeg
-- 🔴 **Latencias extremas:** Swap a disco es 1000x más lento que RAM
-- 🔴 **Inestabilidad total:** Procesos se reinician constantemente
+- 🔴 **Latencias altas:** Swap a disco es 1000x más lento que RAM
+- 🔴 **Inestabilidad:** Procesos pueden degradarse bajo carga
 
 **Impacto:**
 - **Explica el 100% de los problemas observados en AMBOS escenarios**
-- Latencias de 40-257 segundos (Escenario 1) por swap de memoria
+- Latencias de 40-257 segundos (Escenario 1) por presión de memoria
 - Latencias de 2 segundos (Escenario 2) por timeouts de Redis saturado
 - Colapso total con 200-300 usuarios por OOM
 - 91.53% de error (Escenario 2) por saturación de recursos
@@ -1089,10 +1091,10 @@ TOTAL: ~$270/mes
 ```
 
 **ROI del Upgrade:**
-- t2.micro actual: ~$8/mes → Sistema INOPERABLE
+- t2.small actual: ~$17/mes → Sistema CON LIMITACIONES
 - Separación de capas: ~$270/mes → Sistema FUNCIONAL
-- **Incremento de costo:** $262/mes
-- **Incremento de capacidad:** 100x+ (de 5 usuarios → 500+ usuarios)
+- **Incremento de costo:** $253/mes
+- **Incremento de capacidad:** 50x+ (de 10 usuarios → 500+ usuarios)
 - **ROI:** ⭐⭐⭐⭐⭐ INMEDIATO
 
 ---
@@ -1251,7 +1253,7 @@ def process_video_task(self, video_id: int):
 
 **Causa Raíz Probable:**
 - Red interna entre JMeter y aplicación en misma instancia
-- Competencia por ancho de banda limitado de t2.micro
+- Competencia por ancho de banda limitado de t2.small
 - Sin CDN o edge locations para contenido estático
 
 **Impacto:**
@@ -1316,21 +1318,21 @@ async def upload_video(...):
 
 ---
 
-#### 10.1.3 Upgrade URGENTE de Instancia EC2 (t2.micro → t3.large)
+#### 10.1.3 Upgrade URGENTE de Instancia EC2 (t2.small → t3.large)
 
 **Estado Actual:**
-- **t2.micro:** 1 vCPU, 1 GB RAM (~$8/mes)
-- **Déficit:** -75% CPU, -75% RAM
-- **Estado:** Sistema INOPERABLE
+- **t2.small:** 2 vCPUs, 2 GiB RAM (~$17/mes)
+- **Déficit:** -50% CPU, -50% RAM
+- **Estado:** Sistema CON LIMITACIONES SEVERAS
 
 **Upgrade Recomendado:**
 
 | Opción | Tipo | vCPU | RAM | Costo/mes | Capacidad Estimada | Recomendación |
 |--------|------|------|-----|-----------|-------------------|---------------|
-| **Mínimo** | t3.small | 2 | 2 GB | ~$15 | 20-50 usuarios | ⚠️ Insuficiente |
-| **Aceptable** | t3.medium | 2 | 4 GB | ~$30 | 50-100 usuarios | ✅ Mínimo viable |
-| **Recomendado** | t3.large | 2 | 8 GB | ~$60 | 100-300 usuarios | ⭐ RECOMENDADO |
-| **Óptimo** | c5.xlarge | 4 | 8 GB | ~$120 | 300-500 usuarios | ⭐⭐ Producción |
+| **Actual** | t2.small | 2 | 2 GiB | ~$17 | 10-20 usuarios | ⚠️ Insuficiente |
+| **Aceptable** | t3.medium | 2 | 4 GiB | ~$30 | 50-100 usuarios | ✅ Mínimo viable |
+| **Recomendado** | t3.large | 2 | 8 GiB | ~$60 | 100-300 usuarios | ⭐ RECOMENDADO |
+| **Óptimo** | c5.xlarge | 4 | 8 GiB | ~$120 | 300-500 usuarios | ⭐⭐ Producción |
 
 **Configuración Docker Compose para t3.large:**
 ```yaml
@@ -1366,12 +1368,12 @@ celery_worker:
         memory: '2G'    # FFmpeg requiere memoria
 ```
 
-**Impacto Estimado del Upgrade (t2.micro → t3.large):**
-- Estabilidad: +1000% (sin crashes)
-- Capacidad: 5 usuarios → 100-300 usuarios
+**Impacto Estimado del Upgrade (t2.small → t3.large):**
+- Estabilidad: +400% (mayor margen de recursos)
+- Capacidad: 10-20 usuarios → 100-300 usuarios
 - Latencia: 40s → < 2s
 - Error rate: 73% → < 10%
-- Disponibilidad: 0% → 99%+
+- Disponibilidad: ~50% → 99%+
 
 **Esfuerzo:** Bajo (15 minutos)
 ```bash
@@ -1387,10 +1389,10 @@ aws ec2 modify-instance-attribute \
 aws ec2 start-instances --instance-ids i-xxxxx
 ```
 
-**Costo Incremental:** $52/mes ($60 - $8)  
+**Costo Incremental:** $43/mes ($60 - $17)  
 **ROI:** ⭐⭐⭐⭐⭐ **CRÍTICO - MÁXIMA PRIORIDAD**
 
-**URGENCIA:** 🔴🔴🔴 **INMEDIATO** - Sin este upgrade, NADA más funciona
+**URGENCIA:** 🔴🔴🔴 **INMEDIATO** - Sin este upgrade, el sistema no escala
 
 ---
 
@@ -1503,7 +1505,7 @@ target_cpu_utilization: 70%
 
 | Fase | Acción | Esfuerzo | Impacto | Plazo |
 |------|--------|----------|---------|-------|
-| **0** | **UPGRADE t2.micro → t3.large** | **15 min** | **🔴🔴🔴 BLOQUEANTE** | **INMEDIATO** |
+| **0** | **UPGRADE t2.small → t3.large** | **15 min** | **🔴🔴🔴 BLOQUEANTE** | **INMEDIATO** |
 | **1** | Incrementar workers Uvicorn a 4 | 1 hora | 🔴 CRÍTICO | Inmediato |
 | **2** | Desacoplar procesamiento asíncrono | 2 horas | 🔴 CRÍTICO | 1 día |
 | **3** | Configurar límites de recursos (nuevo hardware) | 1 hora | 🟠 ALTO | 1 día |
@@ -1515,7 +1517,7 @@ target_cpu_utilization: 70%
 
 **⚠️ ACCIÓN #0 - CRÍTICA (PRIMERO):**
 ```bash
-# UPGRADE INSTANCIA EC2: t2.micro → t3.large
+# UPGRADE INSTANCIA EC2: t2.small → t3.large
 # Tiempo: 15 minutos | Costo: +$52/mes | Impacto: +1000% capacidad
 
 # 1. Detener instancia
@@ -1582,17 +1584,17 @@ El sistema presenta **fallas catastróficas de capacidad** que lo hacen **COMPLE
 - Sin mecanismos de auto-recuperación
 - Sin balanceo de carga
 
-**Bottleneck #1 (CRÍTICO - Ambos Escenarios):** Instancia t2.micro completamente inadecuada
-- **1 vCPU, 1 GB RAM** para aplicación que requiere **8+ vCPUs, 16+ GB RAM**
-- **Déficit del 87.5%** en CPU y **93.75%** en RAM
+**Bottleneck #1 (CRÍTICO - Ambos Escenarios):** Instancia t2.small inadecuada para la carga
+- **2 vCPUs, 2 GiB RAM** para aplicación que requiere **8+ vCPUs, 16+ GiB RAM**
+- **Déficit del 75%** en CPU y **87.5%** en RAM
 - Causa directa en **AMBOS escenarios** de:
-  - ✅ **Escenario 1:** Latencias de 40-257 segundos (memory thrashing)
-  - ✅ **Escenario 1:** Colapso con 200-300 usuarios (OOM Killer)
+  - ✅ **Escenario 1:** Latencias de 40-257 segundos (presión de memoria)
+  - ✅ **Escenario 1:** Colapso con 200-300 usuarios (recursos agotados)
   - ✅ **Escenario 1:** Tasa de error 38-94% (recursos insuficientes)
-  - ✅ **Escenario 1:** Throughput colapsado (CPU throttling)
+  - ✅ **Escenario 1:** Throughput colapsado (CPU contention)
   - ✅ **Escenario 2:** 91.53% de error al encolar tareas (Redis saturado)
   - ✅ **Escenario 2:** Latencias de 2s (timeouts de Redis)
-  - ✅ **Escenario 2:** Workers + FFmpeg compiten por recursos
+  - ✅ **Escenario 2:** Workers + FFmpeg compiten por recursos limitados
 
 **Bottleneck #2 (CRÍTICO - Escenario 1):** Configuración inadecuada de Uvicorn
 - Single worker procesa todas las requests secuencialmente
@@ -1624,23 +1626,23 @@ El sistema presenta **fallas catastróficas de capacidad** que lo hacen **COMPLE
 **Veredicto:** ❌❌❌ **COMPLETAMENTE INAPTO para producción en AMBOS escenarios**
 
 **Hallazgos Críticos Consolidados:** 
-> 🚨 El sistema presenta **fallas catastróficas en DOS niveles simultáneos**:
+> 🚨 El sistema presenta **fallas severas en DOS niveles simultáneos**:
 > 
-> **NIVEL 1 - Capa Web (Escenario 1):** La instancia **t2.micro (1 vCPU, 1 GB RAM)** es **completamente inadecuada** para correr 5 servicios Docker que requieren 4+ GB de RAM. Con cargas de **200-300 usuarios la instancia SE CAE COMPLETAMENTE** por OOM (Out of Memory).
+> **NIVEL 1 - Capa Web (Escenario 1):** La instancia **t2.small (2 vCPUs, 2 GiB RAM)** es **inadecuada** para correr 5 servicios Docker que requieren 4+ GiB de RAM. Con cargas de **200-300 usuarios la instancia SE DEGRADA SEVERAMENTE** por presión de memoria.
 > 
 > **NIVEL 2 - Capa Worker (Escenario 2):** Solo **4 workers** intentan procesar **80x más tareas** de las que pueden manejar (321 tareas/min entrando vs 4 tareas/min procesadas), causando **backlog infinito** y **saturación de Redis con 91.53% de error**.
 > 
-> Esto representa un **riesgo operacional CATASTRÓFICO** que hace el sistema **INVIABLE** para producción.
+> Esto representa un **riesgo operacional ALTO** que hace el sistema **NO ESCALABLE** para producción.
 
 **Requisitos Mínimos para Producción:**
 
-**BLOQUEANTES (Sin estos, el sistema NO puede operar):**
+**BLOQUEANTES (Sin estos, el sistema NO escala apropiadamente):**
 
 1. ✅ **SEPARACIÓN DE CAPAS - MANDATORIO:**
-   - **API Layer:** Instancia t3.medium (2 vCPU, 4 GB RAM) - $30/mes
-   - **Worker Layer:** Instancia c5.2xlarge (8 vCPU, 16 GB RAM) - $240/mes
-   - **Total:** ~$270/mes vs $8/mes actual (+$262/mes)
-   - **ROI:** Sistema pasa de INOPERABLE → FUNCIONAL
+   - **API Layer:** Instancia t3.medium (2 vCPU, 4 GiB RAM) - $30/mes
+   - **Worker Layer:** Instancia c5.2xlarge (8 vCPU, 16 GiB RAM) - $240/mes
+   - **Total:** ~$270/mes vs $17/mes actual (+$253/mes)
+   - **ROI:** Sistema pasa de LIMITADO → FUNCIONAL
 
 2. ✅ **Implementar infraestructura redundante con Load Balancer**
    - Mínimo 2 instancias de API con ALB
@@ -1743,11 +1745,11 @@ El sistema presenta **fallas catastróficas de capacidad** que lo hacen **COMPLE
    - Load balancer y auto-scaling son **MANDATORIOS**, no opcionales
 
 2. **Dimensionamiento de hardware es FUNDAMENTAL:**
-   - **t2.micro (1 GB RAM) NO puede correr aplicación que requiere 4+ GB**
-   - Memory thrashing causa latencias extremas (40-257 segundos en Escenario 1)
-   - OOM Killer mata procesos causando colapso total
-   - **Inversión mínima en hardware ($262/mes) evita pérdidas catastróficas**
-   - **ROI inmediato:** Sistema pasa de 100% inoperable → 100% funcional
+   - **t2.small (2 GiB RAM) es INSUFICIENTE para aplicación que requiere 4+ GiB**
+   - Presión de memoria causa latencias altas (40-257 segundos en Escenario 1)
+   - Posibles OOM Killer bajo carga extrema
+   - **Inversión en hardware adecuado ($253/mes) evita degradación**
+   - **ROI inmediato:** Sistema pasa de limitado → funcional y escalable
 
 3. **Separación de capas es MANDATORIA:**
    - **API y Workers NO deben compartir recursos**
