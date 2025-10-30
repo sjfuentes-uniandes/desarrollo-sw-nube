@@ -11,9 +11,6 @@ sudo unzip awscliv2.zip
 sudo ./aws/install
 sudo rm -rf aws awscliv2.zip
 
-# Crear usuario
-sudo useradd -m -s /bin/bash appuser
-
 # Crear directorio app
 sudo mkdir -p /opt/app
 cd /opt/app
@@ -22,39 +19,18 @@ cd /opt/app
 sudo git clone https://github.com/sjfuentes-uniandes/desarrollo-sw-nube.git .
 sudo git checkout alb
 
-# Instalar dependencias
-python3 -m pip install -r requirements.txt --break-system-packages
 
-# Cambiar propietario
-sudo chown -R appuser:appuser /opt/app
+# Crear entorno virtual e instalar dependencias
+sudo python3 -m venv venv
+sudo ./venv/bin/pip install --upgrade pip
+sudo ./venv/bin/pip install -r requirements.txt
 
-# Instalar dependencias como appuser
-sudo -u appuser python3 -m pip install -r requirements.txt --break-system-packages
+# Crear tablas de base de datos
+sudo bash -c 'cd /opt/app && export PYTHONPATH=/opt/app && ./venv/bin/python -c "try: from src.core.aws_config import DATABASE_URL; print(f\"Using DB: {DATABASE_URL}\"); from src.models import db_models; from sqlalchemy import create_engine; engine = create_engine(DATABASE_URL); db_models.Base.metadata.create_all(bind=engine); print(\"Database tables created\"); except Exception as e: print(f\"DB init error: {e}\"); import traceback; traceback.print_exc()"'
 
-# Servicio systemd (sin archivo .env, usa AWS Secrets/Parameters)
-sudo tee /etc/systemd/system/fastapi-web.service << EOF
-[Unit]
-Description=FastAPI Web API
-After=network.target
+# Iniciar aplicación directamente en background
+cd /opt/app
+export PYTHONPATH=/opt/app
+sudo bash -c 'cd /opt/app && export PYTHONPATH=/opt/app && nohup ./venv/bin/python -m uvicorn src.main:app --host 0.0.0.0 --port 8000 > /opt/app/fastapi.log 2>&1 &'
 
-[Service]
-Type=simple
-User=appuser
-WorkingDirectory=/opt/app
-ExecStart=/usr/bin/python3 -m uvicorn src.main:app --host 0.0.0.0 --port 8000
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# Iniciar servicio
-sudo systemctl daemon-reload
-sudo systemctl enable fastapi-web
-sudo systemctl start fastapi-web
-
-
-
-# verlogs
-# sudo journalctl -u fastapi-web -f
-# sudo systemctl status fastapi-web
+# Ver logs: tail -f /opt/app/fastapi.log

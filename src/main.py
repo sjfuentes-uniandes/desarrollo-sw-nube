@@ -5,7 +5,7 @@ try:
     from sqlalchemy.orm import sessionmaker, declarative_base
     
     engine = create_engine(DATABASE_URL)
-except ImportError:
+except Exception:
     from src.db.database import engine
 
 from src.models import db_models
