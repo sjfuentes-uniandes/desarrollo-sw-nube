@@ -2,11 +2,11 @@
 
 # User Data para capa web en Auto Scaling Group
 
-yum update -y
-yum install -y python3.11 python3.11-pip git
+apt update -y
+apt install -y python3.11 python3.11-pip python3.11-venv git awscli
 
 # Crear usuario
-useradd -m appuser
+useradd -m -s /bin/bash appuser
 
 # Crear directorio app
 mkdir -p /opt/app
@@ -31,7 +31,7 @@ After=network.target
 Type=simple
 User=appuser
 WorkingDirectory=/opt/app
-ExecStart=/usr/local/bin/python3.11 -m uvicorn src.main:app --host 0.0.0.0 --port 8000
+ExecStart=/usr/bin/python3.11 -m uvicorn src.main:app --host 0.0.0.0 --port 8000
 Restart=always
 
 [Install]
