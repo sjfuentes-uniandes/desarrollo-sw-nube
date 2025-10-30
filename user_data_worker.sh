@@ -11,13 +11,6 @@ sudo unzip awscliv2.zip
 sudo ./aws/install
 sudo rm -rf aws awscliv2.zip
 
-# Configurar Redis para conexiones externas
-sudo sed -i 's/bind 127.0.0.1 ::1/bind 0.0.0.0/' /etc/redis/redis.conf
-sudo sed -i 's/protected-mode yes/protected-mode no/' /etc/redis/redis.conf
-
-# Configurar firewall para Redis (puerto 6379)
-sudo ufw allow 6379/tcp
-
 # Iniciar Redis local
 sudo systemctl start redis-server
 sudo systemctl enable redis-server
