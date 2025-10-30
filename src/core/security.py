@@ -2,12 +2,15 @@ import os
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 from passlib.hash import bcrypt_sha256, bcrypt
-
 import jwt
 
 load_dotenv()
 
-SECRET_KEY = os.getenv("SECRET_KEY", "test-secret-key-for-development-only")
+try:
+    from src.core.aws_config import SECRET_KEY
+except ImportError:
+    SECRET_KEY = os.getenv("SECRET_KEY", "test-secret-key-for-development-only")
+
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_SECONDS = int(os.getenv("ACCESS_TOKEN_EXPIRE_SECONDS", "3600"))
 

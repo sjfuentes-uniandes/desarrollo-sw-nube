@@ -8,7 +8,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Configuración de Redis como broker
-REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+try:
+    from src.core.aws_config import REDIS_URL
+except ImportError:
+    REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
 # Crear instancia de Celery
 celery_app = Celery(

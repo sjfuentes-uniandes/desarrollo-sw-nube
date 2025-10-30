@@ -1,11 +1,9 @@
 from fastapi import APIRouter, status, HTTPException, UploadFile, File, Form
 from fastapi.params import Depends
 import os
-import shutil
-import aiofiles
-import aiofiles.os
-from pathlib import Path
+import boto3
 from datetime import datetime
+from io import BytesIO
 
 from src.models.db_models import Video, Vote, VideoStatus
 from src.routers.auth_router import verify_token
@@ -20,16 +18,13 @@ from typing import List
 
 video_router = APIRouter(tags=["Videos"])
 
-# Configuración de directorios
-UPLOAD_DIR = Path(os.getenv("UPLOADS_DIR", "./uploads"))
-
-def ensure_upload_dir():
-    """Crear directorio de uploads si no existe"""
-    try:
-        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    except (OSError, PermissionError):
-        # En entornos de testing o read-only, ignorar el error
-        pass
+# Cliente S3
+s3_client = boto3.client('s3')
+try:
+    from src.core.aws_config import S3_BUCKET_NAME
+    S3_BUCKET = S3_BUCKET_NAME
+except ImportError:
+    S3_BUCKET = os.getenv('S3_BUCKET_NAME')
 
 # Constantes
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB en bytes
@@ -87,20 +82,20 @@ async def upload_video(
         
         # PASO 1: Generar nombre único para el archivo
         timestamp = int(datetime.now().timestamp())
-        file_extension = Path(video_file.filename).suffix
+        file_extension = os.path.splitext(video_file.filename)[1]
         unique_filename = f"user_{current_user.id}_{timestamp}{file_extension}"
-        file_path = UPLOAD_DIR / unique_filename
+        s3_key = f"uploads/{unique_filename}"
         
-        # PASO 2: Guardar el archivo en el sistema de archivos
-        async with aiofiles.open(file_path, "wb") as buffer:
-            await buffer.write(file_content)
+        # PASO 2: Subir archivo a S3
+        file_obj = BytesIO(file_content)
+        s3_client.upload_fileobj(file_obj, S3_BUCKET, s3_key)
         
         # PASO 3: Crear registro en la base de datos con estado 'uploaded'
         new_video = Video(
             title=title,
             status=VideoStatus.uploaded,
             user_id=current_user.id,
-            original_url=str(file_path),
+            original_url=s3_key,
             processed_url=None,
             processed_at=None,
             task_id=None  # Se asignará después de encolar la tarea
@@ -128,9 +123,12 @@ async def upload_video(
         # Re-lanzar excepciones HTTP
         raise
     except Exception as e:
-        # Limpiar el archivo si algo sale mal
-        if 'file_path' in locals() and file_path.exists():
-            await aiofiles.os.remove(file_path)
+        # Limpiar el archivo de S3 si algo sale mal
+        if 's3_key' in locals():
+            try:
+                s3_client.delete_object(Bucket=S3_BUCKET, Key=s3_key)
+            except:
+                pass
         
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -195,25 +193,24 @@ async def delete_video(video_id:int, db: Session = Depends(get_db), current_user
     if exist_video.status == VideoStatus.public:
         raise HTTPException(status_code=400, detail="Video is public")
 
-    # Eliminar archivos físicos
-    files_to_delete = []
+    # Eliminar archivos de S3
+    s3_keys_to_delete = []
     if exist_video.original_url:
-        files_to_delete.append(exist_video.original_url)
+        s3_keys_to_delete.append(exist_video.original_url)
     if exist_video.processed_url:
-        files_to_delete.append(exist_video.processed_url)
+        s3_keys_to_delete.append(exist_video.processed_url)
     
     # Eliminar de la base de datos primero
     db.delete(exist_video)
     db.commit()
     
-    # Eliminar archivos físicos después del commit
-    for file_path in files_to_delete:
+    # Eliminar archivos de S3 después del commit
+    for s3_key in s3_keys_to_delete:
         try:
-            if os.path.exists(file_path):
-                await aiofiles.os.remove(file_path)
+            s3_client.delete_object(Bucket=S3_BUCKET, Key=s3_key)
         except Exception as e:
             # Log error pero no fallar la operación
-            print(f"Error eliminando archivo {file_path}: {e}")
+            print(f"Error eliminando archivo S3 {s3_key}: {e}")
     
     return {
         'message': 'El video ha sido eliminado exitosamente.',
