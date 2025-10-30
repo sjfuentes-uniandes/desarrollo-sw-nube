@@ -11,7 +11,7 @@ load_dotenv()
 try:
     from src.core.aws_config import REDIS_URL
 except ImportError:
-    REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+    REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 # Crear instancia de Celery
 celery_app = Celery(

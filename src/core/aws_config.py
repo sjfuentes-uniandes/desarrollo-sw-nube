@@ -4,13 +4,13 @@ import json
 
 def get_secret(secret_name):
     """Obtener secreto de AWS Secrets Manager"""
-    client = boto3.client('secretsmanager')
+    client = boto3.client('secretsmanager', region_name='us-east-1')
     response = client.get_secret_value(SecretId=secret_name)
     return json.loads(response['SecretString'])
 
 def get_parameter(parameter_name):
     """Obtener parámetro de AWS Parameter Store"""
-    client = boto3.client('ssm')
+    client = boto3.client('ssm', region_name='us-east-1')
     response = client.get_parameter(Name=parameter_name, WithDecryption=True)
     return response['Parameter']['Value']
 

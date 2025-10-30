@@ -20,6 +20,7 @@ cd /opt/app
 
 # Clonar código
 sudo git clone https://github.com/sjfuentes-uniandes/desarrollo-sw-nube.git .
+sudo git checkout alb
 
 # Instalar dependencias
 python3 -m pip install -r requirements.txt --break-system-packages
@@ -51,3 +52,9 @@ EOF
 sudo systemctl daemon-reload
 sudo systemctl enable fastapi-web
 sudo systemctl start fastapi-web
+
+
+
+# verlogs
+# sudo journalctl -u fastapi-web -f
+# sudo systemctl status fastapi-web
