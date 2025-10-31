@@ -36,6 +36,6 @@ sudo ./venv/bin/pip install -r requirements.txt
 # Iniciar Celery worker en background
 cd /opt/app
 export PYTHONPATH=/opt/app
-sudo bash -c 'nohup ./venv/bin/python -m celery -A src.core.celery_app worker --loglevel=info > /opt/app/celery.log 2>&1 &'
+sudo bash -c 'cd /opt/app && export PYTHONPATH=/opt/app && nohup ./venv/bin/celery -A src.core.celery_app worker --loglevel=info > /opt/app/celery.log 2>&1 &'
 
 # Ver logs: tail -f /opt/app/celery.log
