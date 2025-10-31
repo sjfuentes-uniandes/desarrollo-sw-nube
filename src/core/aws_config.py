@@ -18,7 +18,9 @@ def get_parameter(parameter_name):
 def is_worker_instance():
     import socket
     hostname = socket.gethostname().lower()
-    return 'worker' in hostname
+    is_worker = 'worker' in hostname
+    print(f"DEBUG: hostname={hostname}, is_worker={is_worker}")
+    return is_worker
 
 # Cargar configuración
 try:
@@ -29,8 +31,10 @@ try:
     # Worker usa localhost, Web usa IP del worker
     if is_worker_instance():
         REDIS_URL = "redis://localhost:6379/0"
+        print(f"DEBUG: Worker usando Redis local: {REDIS_URL}")
     else:
         REDIS_URL = get_parameter('/app/redis-worker-url')  # IP del worker
+        print(f"DEBUG: Web usando Redis remoto: {REDIS_URL}")
     
     S3_BUCKET_NAME = get_parameter('/app/s3-bucket')
     
