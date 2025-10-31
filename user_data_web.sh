@@ -32,6 +32,6 @@ sudo bash -c 'cd /opt/app && export PYTHONPATH=/opt/app && ./venv/bin/python -c 
 # Iniciar aplicación directamente en background
 cd /opt/app
 export PYTHONPATH=/opt/app
-sudo bash -c 'cd /opt/app && export PYTHONPATH=/opt/app && nohup ./venv/bin/python -m uvicorn src.main:app --host 0.0.0.0 --port 8000 > /opt/app/fastapi.log 2>&1 &'
+sudo bash -c 'nohup ./venv/bin/python -m uvicorn src.main:app --host 0.0.0.0 --port 8000 > /opt/app/fastapi.log 2>&1 &'
 
 # Ver logs: tail -f /opt/app/fastapi.log
