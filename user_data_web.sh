@@ -12,6 +12,7 @@ sudo ./aws/install
 sudo rm -rf aws awscliv2.zip
 
 # Crear directorio app
+sudo rm -rf /opt/app
 sudo mkdir -p /opt/app
 cd /opt/app
 

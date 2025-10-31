@@ -15,29 +15,21 @@ sudo rm -rf aws awscliv2.zip
 sudo sed -i 's/bind 127.0.0.1 ::1/bind 0.0.0.0/' /etc/redis/redis.conf
 sudo sed -i 's/protected-mode yes/protected-mode no/' /etc/redis/redis.conf
 
-# Configurar firewall para Redis (puerto 6379)
-sudo ufw allow 6379/tcp
-
-# Iniciar Redis local
+# Iniciar Redis
 sudo systemctl start redis-server
 sudo systemctl enable redis-server
 
-# Crear directorio app
+# Clonar código
+sudo rm -rf /opt/app
 sudo mkdir -p /opt/app
 cd /opt/app
-
-# Clonar código
 sudo git clone https://github.com/sjfuentes-uniandes/desarrollo-sw-nube.git .
 sudo git checkout alb
 
-# Crear entorno virtual e instalar dependencias
+# Instalar dependencias
 sudo python3 -m venv venv
-sudo ./venv/bin/pip install --upgrade pip
 sudo ./venv/bin/pip install -r requirements.txt
 
-# Iniciar Celery worker directamente en background
+# Iniciar Celery worker
 cd /opt/app
-export PYTHONPATH=/opt/app
 sudo bash -c 'cd /opt/app && export PYTHONPATH=/opt/app && nohup ./venv/bin/celery -A src.core.celery_app worker --loglevel=info > /opt/app/celery.log 2>&1 &'
-
-# Ver logs: tail -f /opt/app/celery.log
