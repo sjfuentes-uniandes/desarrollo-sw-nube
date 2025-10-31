@@ -3,15 +3,21 @@ Tareas asíncronas de procesamiento de videos con Celery
 """
 import os
 import subprocess
+import tempfile
+import boto3
 from datetime import datetime
 from celery import Task
 from src.core.celery_app import celery_app
 from src.db.database import SessionLocal
 from src.models.db_models import Video, VideoStatus
 
-# Variables de entorno para carpetas
-UPLOADS_DIR = os.getenv("UPLOADS_DIR", "./uploads")
-PROCESSED_DIR = os.getenv("PROCESSED_DIR", "./processed")
+# Cliente S3
+s3_client = boto3.client('s3')
+try:
+    from src.core.aws_config import S3_BUCKET_NAME
+    S3_BUCKET = S3_BUCKET_NAME
+except ImportError:
+    S3_BUCKET = os.getenv('S3_BUCKET_NAME')
 
 
 class DatabaseTask(Task):
@@ -53,17 +59,20 @@ def process_video_task(self, video_id: int):
         if not video:
             return {"success": False, "error": f"Video {video_id} no encontrado"}
         
-        # Rutas de archivos
-        input_path = video.original_url
+        # Descargar archivo de S3 a archivo temporal
+        input_s3_key = video.original_url
         
-        if not os.path.exists(input_path):
-            return {"success": False, "error": f"Archivo no encontrado: {input_path}"}
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as temp_input:
+            try:
+                s3_client.download_fileobj(S3_BUCKET, input_s3_key, temp_input)
+                input_path = temp_input.name
+            except Exception as e:
+                return {"success": False, "error": f"Error descargando de S3: {str(e)}"}
         
-        output_filename = f"processed_{os.path.basename(input_path)}"
-        output_path = os.path.join(PROCESSED_DIR, output_filename)
-        
-        # Asegurar que existe el directorio processed
-        os.makedirs(PROCESSED_DIR, exist_ok=True)
+        # Crear archivo temporal para salida
+        temp_output = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+        output_path = temp_output.name
+        temp_output.close()
         
         # PASO 1: Procesar video con FFmpeg
         # Comandos FFmpeg para:
@@ -100,18 +109,27 @@ def process_video_task(self, video_id: int):
         if result.returncode != 0:
             raise Exception(f"Error en FFmpeg (code {result.returncode}): {result.stderr[:500]}")
         
-        # PASO 2: Agregar logo ANB (simulado por ahora)
-        # TODO: Implementar overlay de logo cuando esté disponible
-        # ffmpeg_logo_command = [...]
+        # PASO 2: Subir archivo procesado a S3
+        processed_s3_key = f"processed/processed_{os.path.basename(input_s3_key)}"
+        
+        with open(output_path, 'rb') as f:
+            s3_client.upload_fileobj(f, S3_BUCKET, processed_s3_key)
         
         # PASO 3: Actualizar BD
         video.status = VideoStatus.processed
-        video.processed_url = output_path
+        video.processed_url = processed_s3_key
         video.processed_at = datetime.utcnow()
         
         db.commit()
         db.refresh(video)
         db.close()
+        
+        # Limpiar archivos temporales
+        try:
+            os.unlink(input_path)
+            os.unlink(output_path)
+        except:
+            pass
         
         return {
             "success": True,
