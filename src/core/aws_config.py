@@ -14,13 +14,24 @@ def get_parameter(parameter_name):
     response = client.get_parameter(Name=parameter_name, WithDecryption=True)
     return response['Parameter']['Value']
 
+# Detectar si es worker basado en hostname
+def is_worker_instance():
+    import socket
+    hostname = socket.gethostname().lower()
+    return 'worker' in hostname
+
 # Cargar configuración
 try:
     db_secret = get_secret('app/database-credentials')
     DATABASE_URL = f"postgresql://{db_secret['username']}:{db_secret['password']}@{db_secret['host']}:{db_secret['port']}/{db_secret['dbname']}"
     SECRET_KEY = get_secret('app/jwt-secret')['key']
     
-    REDIS_URL = get_parameter('/app/redis-url')
+    # Worker usa localhost, Web usa IP del worker
+    if is_worker_instance():
+        REDIS_URL = "redis://localhost:6379/0"
+    else:
+        REDIS_URL = get_parameter('/app/redis-worker-url')  # IP del worker
+    
     S3_BUCKET_NAME = get_parameter('/app/s3-bucket')
     
 except Exception:
