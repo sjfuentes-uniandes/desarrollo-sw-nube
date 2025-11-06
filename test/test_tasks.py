@@ -409,6 +409,52 @@ class TestVideoTasksSpecificLines:
         assert processed_s3_key == "processed/processed_test_video.mp4"
         assert processed_s3_key.startswith("processed/")
         assert "processed_" in processed_s3_key
+    
+    @patch('src.tasks.video_tasks.s3_client')
+    @patch('src.tasks.video_tasks.SessionLocal')
+    def test_process_video_complete_success_path(self, mock_session_local, mock_s3_client):
+        """Test: Procesamiento completo exitoso (lines 103-142)"""
+        # Setup mock de base de datos
+        mock_db = Mock()
+        mock_session_local.return_value = mock_db
+        
+        # Mock del video
+        mock_video = Mock(spec=Video)
+        mock_video.id = 1
+        mock_video.original_url = "uploads/test_video.mp4"
+        mock_db.query.return_value.filter.return_value.first.return_value = mock_video
+        
+        with patch('tempfile.NamedTemporaryFile') as mock_temp:
+            # Mock input file with context manager support
+            mock_input_file = Mock()
+            mock_input_file.name = "/tmp/input.mp4"
+            mock_input_file.__enter__ = Mock(return_value=mock_input_file)
+            mock_input_file.__exit__ = Mock(return_value=None)
+            
+            # Mock output file
+            mock_output_file = Mock()
+            mock_output_file.name = "/tmp/output.mp4"
+            mock_output_file.close = Mock()
+            
+            mock_temp.side_effect = [mock_input_file, mock_output_file]
+            
+            with patch('subprocess.run') as mock_subprocess:
+                # Mock successful FFmpeg execution
+                mock_subprocess.return_value.returncode = 0
+                mock_subprocess.return_value.stdout = "FFmpeg success"
+                mock_subprocess.return_value.stderr = ""
+                
+                with patch('builtins.open', mock_open(read_data=b'processed_video_data')):
+                    with patch('os.unlink'):
+                        with patch('os.path.basename', return_value='test_video.mp4'):
+                            result = process_video_task(1)
+        
+        # Debug: print result if test fails
+        if not result.get("success"):
+            print(f"Test failed with result: {result}")
+        
+        # Verificar resultado exitoso
+        assert result["success"] == True
 
 class TestS3BucketOwnershipTests:
     """Tests para ExpectedBucketOwner en operaciones S3"""

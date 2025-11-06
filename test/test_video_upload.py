@@ -283,3 +283,77 @@ class TestVideoUpload:
         # Debe retornar error 500
         assert response.status_code == 500
         assert "Error al subir el video" in response.json()["detail"]
+
+class TestVideoUploadS3BucketOwnership:
+    """Tests para ExpectedBucketOwner en video upload"""
+    
+    @patch('src.routers.video_router.BUCKET_OWNER', '123456789012')
+    @patch('src.routers.video_router.s3_client.upload_fileobj')
+    @patch('src.routers.video_router.process_video_task.delay')
+    def test_upload_video_with_expected_bucket_owner(self, mock_task, mock_s3_upload, client, auth_headers):
+        """Test: Upload incluye ExpectedBucketOwner"""
+        mock_task.return_value = Mock(id="task-123")
+        
+        video_file = BytesIO(b"fake video content")
+        
+        response = client.post(
+            "/api/videos/upload",
+            headers=auth_headers,
+            files={"video_file": ("test.mp4", video_file, "video/mp4")},
+            data={"title": "Test Video"}
+        )
+        
+        assert response.status_code == 201
+        
+        # Verificar que upload_fileobj fue llamado con ExpectedBucketOwner
+        mock_s3_upload.assert_called_once()
+        call_args = mock_s3_upload.call_args
+        assert 'ExtraArgs' in call_args.kwargs
+        assert call_args.kwargs['ExtraArgs']['ExpectedBucketOwner'] == '123456789012'
+    
+    @patch('src.routers.video_router.BUCKET_OWNER', None)
+    @patch('src.routers.video_router.s3_client.upload_fileobj')
+    @patch('src.routers.video_router.process_video_task.delay')
+    def test_upload_video_without_bucket_owner(self, mock_task, mock_s3_upload, client, auth_headers):
+        """Test: Upload sin ExpectedBucketOwner cuando BUCKET_OWNER es None"""
+        mock_task.return_value = Mock(id="task-123")
+        
+        video_file = BytesIO(b"fake video content")
+        
+        response = client.post(
+            "/api/videos/upload",
+            headers=auth_headers,
+            files={"video_file": ("test.mp4", video_file, "video/mp4")},
+            data={"title": "Test Video"}
+        )
+        
+        assert response.status_code == 201
+        
+        # Verificar que upload_fileobj fue llamado sin ExpectedBucketOwner
+        mock_s3_upload.assert_called_once()
+        call_args = mock_s3_upload.call_args
+        assert 'ExtraArgs' in call_args.kwargs
+        assert call_args.kwargs['ExtraArgs'] == {}
+    
+    @patch('src.routers.video_router.BUCKET_OWNER', '123456789012')
+    @patch('src.routers.video_router.s3_client.delete_object')
+    @patch('src.routers.video_router.s3_client.upload_fileobj', side_effect=Exception("Upload failed"))
+    @patch('src.routers.video_router.process_video_task.delay')
+    def test_upload_cleanup_with_expected_bucket_owner(self, mock_task, mock_s3_upload, mock_s3_delete, client, auth_headers):
+        """Test: Cleanup incluye ExpectedBucketOwner en caso de error"""
+        video_file = BytesIO(b"fake video content")
+        
+        response = client.post(
+            "/api/videos/upload",
+            headers=auth_headers,
+            files={"video_file": ("test.mp4", video_file, "video/mp4")},
+            data={"title": "Test Video"}
+        )
+        
+        assert response.status_code == 500
+        
+        # Verificar que delete_object fue llamado con ExpectedBucketOwner
+        mock_s3_delete.assert_called_once()
+        call_args = mock_s3_delete.call_args
+        assert 'ExpectedBucketOwner' in call_args.kwargs
+        assert call_args.kwargs['ExpectedBucketOwner'] == '123456789012'

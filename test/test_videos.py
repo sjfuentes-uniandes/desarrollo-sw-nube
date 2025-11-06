@@ -184,3 +184,79 @@ def test_delete_video_success(mock_s3_delete, client):
     data = response.json()
     assert data["message"] == "El video ha sido eliminado exitosamente."
     assert data["video_id"] == video.id
+
+class TestVideoDeleteS3BucketOwnership:
+    """Tests para ExpectedBucketOwner en video delete"""
+    
+    @patch('src.routers.video_router.BUCKET_OWNER', '123456789012')
+    @patch('src.routers.video_router.s3_client.delete_object')
+    def test_delete_video_with_expected_bucket_owner(self, mock_s3_delete, client):
+        """Test: Delete incluye ExpectedBucketOwner"""
+        db = TestingSessionLocal()
+        user = create_test_user(db)
+        video = create_test_video(db, user)
+        headers = auth_header(client, user.email)
+        
+        response = client.delete(f"/api/videos/{video.id}", headers=headers)
+        
+        assert response.status_code == 200
+        
+        # Verificar que delete_object fue llamado con ExpectedBucketOwner
+        assert mock_s3_delete.call_count == 2  # original_url y processed_url
+        
+        # Verificar ambas llamadas
+        for call in mock_s3_delete.call_args_list:
+            assert 'ExpectedBucketOwner' in call.kwargs
+            assert call.kwargs['ExpectedBucketOwner'] == '123456789012'
+    
+    @patch('src.routers.video_router.BUCKET_OWNER', None)
+    @patch('src.routers.video_router.s3_client.delete_object')
+    def test_delete_video_without_bucket_owner(self, mock_s3_delete, client):
+        """Test: Delete sin ExpectedBucketOwner cuando BUCKET_OWNER es None"""
+        db = TestingSessionLocal()
+        user = create_test_user(db)
+        video = create_test_video(db, user)
+        headers = auth_header(client, user.email)
+        
+        response = client.delete(f"/api/videos/{video.id}", headers=headers)
+        
+        assert response.status_code == 200
+        
+        # Verificar que delete_object fue llamado sin ExpectedBucketOwner
+        assert mock_s3_delete.call_count == 2  # original_url y processed_url
+        
+        # Verificar que no se pasó ExpectedBucketOwner
+        for call in mock_s3_delete.call_args_list:
+            assert 'ExpectedBucketOwner' not in call.kwargs
+    
+    @patch('src.routers.video_router.BUCKET_OWNER', '123456789012')
+    @patch('src.routers.video_router.s3_client.delete_object')
+    def test_delete_video_with_only_original_url(self, mock_s3_delete, client):
+        """Test: Delete con solo original_url incluye ExpectedBucketOwner"""
+        db = TestingSessionLocal()
+        user = create_test_user(db)
+        
+        # Video con solo original_url
+        video = Video(
+            title="Test Video",
+            status=VideoStatus.uploaded,
+            user_id=user.id,
+            uploaded_at=datetime.now(),
+            original_url="uploads/test_video.mp4",
+            processed_url=None,
+        )
+        db.add(video)
+        db.commit()
+        db.refresh(video)
+        
+        headers = auth_header(client, user.email)
+        
+        response = client.delete(f"/api/videos/{video.id}", headers=headers)
+        
+        assert response.status_code == 200
+        
+        # Verificar que delete_object fue llamado una vez con ExpectedBucketOwner
+        mock_s3_delete.assert_called_once()
+        call_args = mock_s3_delete.call_args
+        assert 'ExpectedBucketOwner' in call_args.kwargs
+        assert call_args.kwargs['ExpectedBucketOwner'] == '123456789012'

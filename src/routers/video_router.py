@@ -21,10 +21,12 @@ video_router = APIRouter(tags=["Videos"])
 # Cliente S3
 s3_client = boto3.client('s3')
 try:
-    from src.core.aws_config import S3_BUCKET_NAME
+    from src.core.aws_config import S3_BUCKET_NAME, AWS_ACCOUNT_ID
     S3_BUCKET = S3_BUCKET_NAME
+    BUCKET_OWNER = AWS_ACCOUNT_ID
 except ImportError:
     S3_BUCKET = os.getenv('S3_BUCKET_NAME')
+    BUCKET_OWNER = os.getenv('AWS_ACCOUNT_ID')
 
 # Constantes
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB en bytes
@@ -88,7 +90,10 @@ async def upload_video(
         
         # PASO 2: Subir archivo a S3
         file_obj = BytesIO(file_content)
-        s3_client.upload_fileobj(file_obj, S3_BUCKET, s3_key)
+        extra_args = {}
+        if BUCKET_OWNER:
+            extra_args['ExpectedBucketOwner'] = BUCKET_OWNER
+        s3_client.upload_fileobj(file_obj, S3_BUCKET, s3_key, ExtraArgs=extra_args)
         
         # PASO 3: Crear registro en la base de datos con estado 'uploaded'
         new_video = Video(
@@ -126,8 +131,11 @@ async def upload_video(
         # Limpiar el archivo de S3 si algo sale mal
         if 's3_key' in locals():
             try:
-                s3_client.delete_object(Bucket=S3_BUCKET, Key=s3_key)
-            except:
+                extra_args = {}
+                if BUCKET_OWNER:
+                    extra_args['ExpectedBucketOwner'] = BUCKET_OWNER
+                s3_client.delete_object(Bucket=S3_BUCKET, Key=s3_key, **extra_args)
+            except Exception:
                 pass
         
         raise HTTPException(
@@ -207,7 +215,10 @@ async def delete_video(video_id:int, db: Session = Depends(get_db), current_user
     # Eliminar archivos de S3 después del commit
     for s3_key in s3_keys_to_delete:
         try:
-            s3_client.delete_object(Bucket=S3_BUCKET, Key=s3_key)
+            extra_args = {}
+            if BUCKET_OWNER:
+                extra_args['ExpectedBucketOwner'] = BUCKET_OWNER
+            s3_client.delete_object(Bucket=S3_BUCKET, Key=s3_key, **extra_args)
         except Exception as e:
             # Log error pero no fallar la operación
             print(f"Error eliminando archivo S3 {s3_key}: {e}")

@@ -136,7 +136,7 @@ def process_video_task(self, video_id: int):
         try:
             os.unlink(input_path)
             os.unlink(output_path)
-        except:
+        except (OSError, FileNotFoundError):
             pass
         
         return {
@@ -156,7 +156,7 @@ def process_video_task(self, video_id: int):
                 # Podrías agregar un campo 'error_message' al modelo si quieres
                 pass
             db.close()
-        except:
+        except Exception:
             pass
         
         return {

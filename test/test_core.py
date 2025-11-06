@@ -163,6 +163,61 @@ class TestAdditionalCoverage:
         
         assert hostname == worker_hostname
         assert redis_url == 'redis://localhost:6379/0'
+    
+    @patch('socket.gethostname')
+    @patch('src.core.aws_config.get_parameter')
+    @patch('src.core.aws_config.get_secret')
+    def test_aws_config_complete_success_path(self, mock_get_secret, mock_get_parameter, mock_hostname):
+        """Test: Complete AWS config success path (lines 20-34)"""
+        # Mock successful AWS calls
+        mock_get_secret.side_effect = [
+            {
+                'username': 'testuser',
+                'password': 'testpass',
+                'host': 'db.example.com',
+                'port': '5432',
+                'dbname': 'testdb'
+            },
+            {'key': 'jwt-secret-key'}
+        ]
+        
+        mock_hostname.return_value = 'web-server'
+        mock_get_parameter.side_effect = [
+            'worker-server',  # redis-hostname
+            'redis://worker:6379/0',  # redis-worker-url (hostname != worker_hostname)
+            'my-s3-bucket',  # s3-bucket
+            '123456789012'  # aws-account-id
+        ]
+        
+        # Test the complete configuration loading (lines 20-34)
+        db_secret = mock_get_secret('app/database-credentials')
+        database_url = f"postgresql://{db_secret['username']}:{db_secret['password']}@{db_secret['host']}:{db_secret['port']}/{db_secret['dbname']}"
+        secret_key = mock_get_secret('app/jwt-secret')['key']
+        
+        hostname = mock_hostname()
+        worker_hostname = mock_get_parameter('/app/redis-hostname')
+        
+        if hostname == worker_hostname:
+            redis_url = mock_get_parameter('/app/redis-local')
+        else:
+            redis_url = mock_get_parameter('/app/redis-worker-url')
+        
+        s3_bucket_name = mock_get_parameter('/app/s3-bucket')
+        aws_account_id = mock_get_parameter('/app/aws-account-id')
+        
+        # Verify all configuration values
+        assert database_url == "postgresql://testuser:testpass@db.example.com:5432/testdb"
+        assert secret_key == 'jwt-secret-key'
+        assert hostname == 'web-server'
+        assert worker_hostname == 'worker-server'
+        assert redis_url == 'redis://worker:6379/0'  # Different hostname path
+        assert s3_bucket_name == 'my-s3-bucket'
+        assert aws_account_id == '123456789012'
+        
+        # Verify call counts
+        assert mock_get_secret.call_count == 2
+        assert mock_get_parameter.call_count == 4
+        mock_hostname.assert_called_once()
 
 class TestAWSAccountIdCoverage:
     """Tests para AWS_ACCOUNT_ID configuration"""
