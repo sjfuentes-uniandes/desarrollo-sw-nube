@@ -1724,6 +1724,38 @@ class TestPublicRouterCoverage:
 class TestAdditionalCoverage:
     """Tests adicionales para mejorar cobertura"""
     
+    @patch('boto3.client')
+    def test_get_secret_function(self, mock_boto_client):
+        """Test: get_secret function"""
+        from src.core.aws_config import get_secret
+        
+        # Mock the secrets manager client
+        mock_client = Mock()
+        mock_boto_client.return_value = mock_client
+        mock_client.get_secret_value.return_value = {
+            'SecretString': '{"key": "test-value"}'
+        }
+        
+        result = get_secret('test-secret')
+        assert result['key'] == 'test-value'
+        mock_boto_client.assert_called_with('secretsmanager', region_name='us-east-1')
+    
+    @patch('boto3.client')
+    def test_get_parameter_function(self, mock_boto_client):
+        """Test: get_parameter function"""
+        from src.core.aws_config import get_parameter
+        
+        # Mock the SSM client
+        mock_client = Mock()
+        mock_boto_client.return_value = mock_client
+        mock_client.get_parameter.return_value = {
+            'Parameter': {'Value': 'test-parameter-value'}
+        }
+        
+        result = get_parameter('test-parameter')
+        assert result == 'test-parameter-value'
+        mock_boto_client.assert_called_with('ssm', region_name='us-east-1')
+    
     def test_aws_config_fallback(self):
         """Test: AWS config fallback to env vars"""
         from src.core import aws_config
@@ -1769,3 +1801,58 @@ class TestAdditionalCoverage:
         upload_response = VideoUploadResponse(message="Success", task_id="123")
         assert upload_response.message == "Success"
         assert upload_response.task_id == "123"
+
+class TestVideoTasksCoverage:
+    """Tests para mejorar cobertura de video_tasks.py"""
+    
+    @patch('src.tasks.video_tasks.s3_client')
+    @patch('src.tasks.video_tasks.SessionLocal')
+    def test_process_video_s3_download_error(self, mock_session_local, mock_s3_client):
+        """Test: Error al descargar de S3"""
+        # Setup mock de base de datos
+        mock_db = Mock()
+        mock_session_local.return_value = mock_db
+        
+        # Mock del video
+        mock_video = Mock(spec=Video)
+        mock_video.id = 1
+        mock_video.original_url = "uploads/test_video.mp4"
+        mock_db.query.return_value.filter.return_value.first.return_value = mock_video
+        
+        # Mock S3 error
+        mock_s3_client.download_fileobj.side_effect = Exception("S3 download error")
+        
+        with patch('tempfile.NamedTemporaryFile') as mock_temp:
+            mock_temp_file = Mock()
+            mock_temp_file.name = "/tmp/test.mp4"
+            mock_temp.return_value.__enter__.return_value = mock_temp_file
+            
+            result = process_video_task(1)
+        
+        assert result["success"] is False
+        assert "Error descargando de S3" in result["error"]
+    
+    def test_database_task_properties(self):
+        """Test: DatabaseTask properties and methods"""
+        task = DatabaseTask()
+        
+        # Test db property creates session
+        with patch('src.tasks.video_tasks.SessionLocal') as mock_session:
+            mock_db = Mock()
+            mock_session.return_value = mock_db
+            
+            db = task.db
+            assert db == mock_db
+            mock_session.assert_called_once()
+            
+            # Test db property reuses session
+            db2 = task.db
+            assert db2 == mock_db
+            assert mock_session.call_count == 1
+        
+        # Test after_return closes session
+        mock_db_session = Mock()
+        task._db = mock_db_session
+        task.after_return()
+        mock_db_session.close.assert_called_once()
+        assert task._db is None
