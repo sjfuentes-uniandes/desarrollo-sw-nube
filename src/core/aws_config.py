@@ -31,6 +31,7 @@ try:
         REDIS_URL = get_parameter('/app/redis-worker-url')  # IP del worker para web
     
     S3_BUCKET_NAME = get_parameter('/app/s3-bucket')
+    AWS_ACCOUNT_ID = get_parameter('/app/aws-account-id')
     
 except Exception:
     # Fallback a variables de entorno para desarrollo local
@@ -38,3 +39,4 @@ except Exception:
     SECRET_KEY = os.getenv("SECRET_KEY")
     REDIS_URL = os.getenv("REDIS_URL")
     S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
+    AWS_ACCOUNT_ID = os.getenv("AWS_ACCOUNT_ID")

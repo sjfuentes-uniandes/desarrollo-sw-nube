@@ -14,10 +14,12 @@ from src.models.db_models import Video, VideoStatus
 # Cliente S3
 s3_client = boto3.client('s3')
 try:
-    from src.core.aws_config import S3_BUCKET_NAME
+    from src.core.aws_config import S3_BUCKET_NAME, AWS_ACCOUNT_ID
     S3_BUCKET = S3_BUCKET_NAME
+    BUCKET_OWNER = AWS_ACCOUNT_ID
 except ImportError:
     S3_BUCKET = os.getenv('S3_BUCKET_NAME')
+    BUCKET_OWNER = os.getenv('AWS_ACCOUNT_ID')
 
 
 class DatabaseTask(Task):
@@ -64,7 +66,10 @@ def process_video_task(self, video_id: int):
         
         with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as temp_input:
             try:
-                s3_client.download_fileobj(S3_BUCKET, input_s3_key, temp_input)
+                extra_args = {}
+                if BUCKET_OWNER:
+                    extra_args['ExpectedBucketOwner'] = BUCKET_OWNER
+                s3_client.download_fileobj(S3_BUCKET, input_s3_key, temp_input, ExtraArgs=extra_args)
                 input_path = temp_input.name
             except Exception as e:
                 return {"success": False, "error": f"Error descargando de S3: {str(e)}"}
@@ -113,7 +118,10 @@ def process_video_task(self, video_id: int):
         processed_s3_key = f"processed/processed_{os.path.basename(input_s3_key)}"
         
         with open(output_path, 'rb') as f:
-            s3_client.upload_fileobj(f, S3_BUCKET, processed_s3_key)
+            extra_args = {}
+            if BUCKET_OWNER:
+                extra_args['ExpectedBucketOwner'] = BUCKET_OWNER
+            s3_client.upload_fileobj(f, S3_BUCKET, processed_s3_key, ExtraArgs=extra_args)
         
         # PASO 3: Actualizar BD
         video.status = VideoStatus.processed
