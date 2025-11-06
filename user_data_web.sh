@@ -18,7 +18,6 @@ cd /opt/app
 
 # Clonar código
 sudo git clone https://github.com/sjfuentes-uniandes/desarrollo-sw-nube.git .
-sudo git checkout alb
 
 
 # Crear entorno virtual e instalar dependencias
