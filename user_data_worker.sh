@@ -12,8 +12,10 @@ sudo ./aws/install
 sudo rm -rf aws awscliv2.zip
 
 # Configurar Redis para aceptar conexiones externas
-sudo sed -i 's/bind 127.0.0.1 ::1/bind 0.0.0.0/' /etc/redis/redis.conf
-sudo sed -i 's/protected-mode yes/protected-mode no/' /etc/redis/redis.conf
+CONF="/etc/redis/redis.conf"
+# Forzar valores
+sudo sed -E -i 's/^[[:space:]]*#?[[:space:]]*bind[[:space:]].*/bind 0.0.0.0/' "$CONF"
+sudo sed -E -i 's/^[[:space:]]*#?[[:space:]]*protected-mode[[:space:]]+.*/protected-mode no/' "$CONF"
 
 # Reiniciar Redis
 sudo systemctl restart redis
@@ -33,9 +35,36 @@ sudo python3 -m venv venv
 sudo ./venv/bin/pip install --upgrade pip
 sudo ./venv/bin/pip install -r requirements.txt
 
-# Iniciar Celery worker en background
-cd /opt/app
-export PYTHONPATH=/opt/app
-sudo bash -c 'cd /opt/app && export PYTHONPATH=/opt/app && nohup ./venv/bin/celery -A src.core.celery_app worker --loglevel=info > /opt/app/celery.log 2>&1 &'
+# Crear servicio systemd para Celery worker
+sudo tee /etc/systemd/system/celery.service > /dev/null << 'EOF'
+[Unit]
+Description=Celery Worker
+After=network-online.target redis.service
+Wants=network-online.target
+Requires=redis.service
 
-# Ver logs: tail -f /opt/app/celery.log
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/app
+Environment=PYTHONPATH=/opt/app
+ExecStart=/opt/app/venv/bin/celery -A src.core.celery_app worker --loglevel=info
+Restart=always
+RestartSec=5
+StandardOutput=append:/opt/app/celery.log
+StandardError=append:/opt/app/celery.log
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Habilitar e iniciar servicio
+sudo systemctl daemon-reload
+sudo systemctl enable celery
+sudo systemctl start celery
+
+# Verificar estado
+echo "Celery service status:"
+sudo systemctl status celery --no-pager
+echo "Redis service status:"
+sudo systemctl status redis --no-pager
