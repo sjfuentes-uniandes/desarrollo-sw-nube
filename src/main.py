@@ -1,5 +1,13 @@
 from fastapi import FastAPI
-from src.db.database import engine
+try:
+    from src.core.aws_config import DATABASE_URL
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker, declarative_base
+    
+    engine = create_engine(DATABASE_URL)
+except Exception:
+    from src.db.database import engine
+
 from src.models import db_models
 from src.routers.usuario_router import user_router
 from src.routers.auth_router import auth_router
