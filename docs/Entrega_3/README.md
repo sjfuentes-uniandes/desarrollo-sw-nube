@@ -162,11 +162,25 @@ Debido a que el código necesita de ciertos parametros para su correcto funciona
 ## Pruebas de Capacidad
 
 ### `cloud_load_testing/`
-Contiene los resultados de las pruebas de carga ejecutadas en AWS, organizados en dos escenarios:
+Contiene los resultados de las pruebas de carga ejecutadas en AWS:
 
+#### [Escenario 1: Capa Web con Autoscaling](../../cloud_load_testing/escenario_1_capa_web_autoscaling/)
+
+Este escenario evalúa la capacidad del Application Load Balancer (ALB) y el Auto Scaling Group de instancias EC2 para manejar cargas crecientes.
+
+- **[Fase 1 - Sanidad](../../cloud_load_testing/escenario_1_capa_web_autoscaling/Fase_1_Sanidad/)**: 5 usuarios concurrentes (350 requests, 94.0% éxito)
+- **[Fase 2 - Escalamiento](../../cloud_load_testing/escenario_1_capa_web_autoscaling/Fase_2_Escalamiento/)**: 
+  - [100 usuarios](../../cloud_load_testing/escenario_1_capa_web_autoscaling/Fase_2_Escalamiento/Escenario_100_usuarios/): 356 requests, 94.1% éxito
+  - [200 usuarios](../../cloud_load_testing/escenario_1_capa_web_autoscaling/Fase_2_Escalamiento/Escenario_200_usuarios/): 440 requests, 76.4% éxito (degradación)
+  - [300 usuarios](../../cloud_load_testing/escenario_1_capa_web_autoscaling/Fase_2_Escalamiento/Escenario_300_usuarios/): 705 requests, 83.7% éxito (recuperación con autoscaling)
+- **[Fase 3 - Carga Sostenida](../../cloud_load_testing/escenario_1_capa_web_autoscaling/Fase_3_Sostenido/)**: Pendiente de ejecución
+
+**Hallazgos clave**: Autoscaling validado con mejora de 67% en throughput, patrón NO lineal detectado (V-shape).
 
 ### `capacity_planning/`
 Contiene la documentación y planificación de las pruebas de capacidad:
+
+- **[Pruebas de Carga Entrega 3](../../capacity_planning/pruebas_de_carga_entrega3.md)**: Documentación completa con resultados consolidados de los 4 escenarios, análisis detallado, gráficos comparativos y validación de autoscaling.
 
 
 ## Integraciones
