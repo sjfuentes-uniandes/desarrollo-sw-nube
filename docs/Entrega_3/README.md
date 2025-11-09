@@ -177,6 +177,18 @@ Este escenario evalúa la capacidad del Application Load Balancer (ALB) y el Aut
 
 **Hallazgos clave**: Autoscaling validado con mejora de 67% en throughput, patrón NO lineal detectado (V-shape).
 
+#### [Escenario 2: Capa de Procesamiento (Worker Aislado)](../../cloud_load_testing/escenario_2_capa_worker_directo/)
+
+Este escenario evalúa el throughput (rendimiento) máximo del worker de Celery de forma aislada, saltando la capa web e inyectando tareas directamente en la cola de Redis a una tasa alta durante 5 minutos para saturar al worker.
+
+- **[Fase 1 - 10 Usuarios](../../cloud_load_testing/escenario_2_capa_worker_directo/10_usuarios/)**:  30.87	Transacciones/s, 100% éxito
+- **[Fase 2 - 20 Usuarios](../../cloud_load_testing/escenario_2_capa_worker_directo/20_usuarios/)**:  61.88 Transacciones/s, 100% éxito
+- **[Fase 2 - 40 Usuarios](../../cloud_load_testing/escenario_2_capa_worker_directo/40_usuarios/)**:  187.08 Transacciones/s, 100% éxito
+- **[Fase 2 - 80 Usuarios](../../cloud_load_testing/escenario_2_capa_worker_directo/80_usuarios/)**:  411.06 Transacciones/s, 100% éxito
+- **[Fase 2 - 150 Usuarios](../../cloud_load_testing/escenario_2_capa_worker_directo/150_usuarios/)**:  705.77 Transacciones/s, 87.91% éxito
+
+Hallazgos clave: Se observa un escalamiento lineal perfecto hasta 80 hilos inyectores. El punto de saturación se identifica a 150 hilos, donde la tasa de éxito colapsa. El rendimiento máximo estable del worker es de 411 Tareas/s.
+
 ### `capacity_planning/`
 Contiene la documentación y planificación de las pruebas de capacidad:
 

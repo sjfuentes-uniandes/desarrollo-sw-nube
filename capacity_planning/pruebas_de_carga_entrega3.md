@@ -19,8 +19,14 @@
    - [5.7 - Escenario 2: 200 Usuarios](#57-fase-2---escenario-2-200-usuarios-concurrentes)
    - [5.8 - Escenario 3: 300 Usuarios](#58-escenario-3-300-usuarios-concurrentes--ejecutado)
 6. [Análisis Comparativo](#6-análisis-comparativo)
-7. [Observaciones y Recomendaciones](#observaciones-y-recomendaciones)
-8. [Anexos](#anexos)
+7. [Escenario 2: Capacidad de la Capa Worker](#7-escenario-2-capacidad-de-la-capa-worker)
+   - [7.1 - Configuración de la Prueba](#71-configuración-de-la-prueba)
+   - [7.2 - Metodología](#72-metodología)
+   - [7.3 - Resultados Consolidados](#73-resultados-consolidados)
+   - [7.4 - Análisis Detallado y Conclusión](#74-análisis-detallado-y-conclusión)
+   - [7.5 - Gráficas](#75-gráficas)
+8. [Observaciones y Recomendaciones](#8-observaciones-y-recomendaciones)
+9. [Anexos](#9-anexos)
 
 ---
 
@@ -1758,9 +1764,126 @@ Decisión:
 
 ---
 
-## 7. Observaciones y Recomendaciones
+## 7. Escenario 2: Capacidad de la Capa Worker
 
-### 7.1 Cuellos de Botella Identificados
+### 7.1 Configuración de la Prueba
+
+**Objetivo:** Aislar el worker de Celery de la API para medir su throughput máximo (tareas/s) bajo una carga de inyección creciente y encontrar el punto de saturación del sistema.
+
+**Parámetros de Prueba:**
+- **Threads (productores):** N threads concurrentes
+- **Ramp-up:** 1 segundo (subida inmediata)
+- **Duración:** 300 segundos (5 minutos)
+- **Loop:** Infinito durante duración
+- **Payload:** Mensaje de 10MB por tarea
+- **Cola Redis:** "celery"
+- **Herramienta:** Apache JMeter con JSR223 Sampler (Groovy + Jedis)
+
+**Diferencias con Escenario 1:**
+
+| Aspecto | Escenario 1 (Capa Web) | Escenario 2 (Capa Worker) |
+|---------|------------------------|---------------------------|
+| **Componente** | API REST (FastAPI) | Celery Workers |
+| **Protocolo** | HTTP POST | Redis LPUSH |
+| **Endpoint** | POST /api/videos/upload | Cola Redis "celery" |
+| **Medición** | Latencia HTTP, throughput API | Throughput de encolado, capacidad de procesamiento |
+| **Carga** | Usuarios concurrentes | Threads encolando tareas |
+
+**Script JSR223 (Groovy) Utilizado:**
+```groovy
+import redis.clients.jedis.Jedis
+import java.nio.file.Files
+import java.nio.file.Paths
+
+// Configuración
+String host = vars.get("REDIS_HOST")      // localhost
+int port = vars.get("REDIS_PORT").toInteger()  // 6379
+String queue = vars.get("REDIS_QUEUE")    // celery
+String payloadPath = vars.get("PAYLOAD_FILE")  // /path/to/mensaje_10mb.txt
+
+Jedis jedis = null
+
+try {
+    // 1. Leer payload de 10MB
+    String payload = new String(Files.readAllBytes(Paths.get(payloadPath)))
+
+    // 2. Conectar a Redis
+    jedis = new Jedis(host, port)
+    
+    // 3. Ejecutar LPUSH a cola Celery
+    jedis.lpush(queue, payload)
+
+    // 4. Reportar éxito
+    SampleResult.setSuccessful(true)
+    SampleResult.setResponseCodeOK()
+    SampleResult.setResponseMessage("OK - LPUSHed to " + queue)
+
+} catch (Exception e) {
+    // 5. Reportar falla
+    SampleResult.setSuccessful(false)
+    SampleResult.setResponseCode("500")
+    SampleResult.setResponseMessage("Error: " + e.getMessage())
+} finally {
+    // 6. Cerrar conexión
+    if (jedis != null) {
+        jedis.close()
+    }
+}
+```
+### 7.2 Metodología
+
+Se diseñó una prueba de inyección directa a la cola de mensajes:
+
+1. **Captura de Payload**: Se utilizó redis-cli MONITOR en la máquina worker (54.211.134.23) mientras se enviaba una petición real a la API. Esto permitió capturar el payload (mensaje JSON exacto) que Celery espera.
+
+2. **Limpieza de Payload**: El JSON capturado fue "limpiado" (eliminando caracteres de escape \) y guardado en un archivo .txt local.
+
+3. **Túnel SSH**: Se estableció un túnel SSH (ssh -N -L 6379:127.0.0.1:6379 ...) desde la máquina local de JMeter hacia la máquina worker, para conectarse al servicio redis-server.
+
+4. **Inyección de Tareas (JMeter)**: Se utilizó un JSR223 Sampler con código Groovy y la librería Jedis. Este script leía el .txt y ejecutaba el comando lpush en la cola celery a través del túnel.
+
+5. **Monitoreo**: Se usó htop para la CPU y journalctl -u celery.service -f para validar el procesamiento de tareas.
+
+---
+
+### 7.3 Resultados Consolidados
+
+El "Número de Hilos" se refiere a los hilos inyectores de JMeter.
+
+| Hilos Inyectores (JMeter) | Throughput (Tareas/s) | Tasa de Éxito | Tareas por Minuto (Aprox.) | Observaciones |
+| :--- | :--- | :--- | :--- | :--- |
+| 10 | 30.87 | 100% | 1,852 | Carga base, estable. |
+| 20 | 61.88 | 100% | 3,712 | Escalamiento lineal perfecto (doble de hilos, doble de T/s). |
+| 40 | 187.08 | 100% | 11,224 | Escalamiento super-lineal (el sistema responde eficientemente). |
+| 80 | 411.06 | 100% | 24,663 | **Máximo rendimiento estable.** La CPU en `htop` se acerca al 100%. |
+| 150 | 705.77 | **87.91%** | ~37,224 (Exitosas) | **Punto de Saturación.** La tasa de error del 12.09% es inaceptable. |
+
+### 7.4 Análisis Detallado y Conclusión
+Los resultados de este escenario son claros:
+
+1.  **Escalamiento Lineal (10-80 Hilos):** El sistema demuestra un rendimiento excelente y predecible. Al duplicar la cantidad de hilos inyectores (de 10 a 20, y de 40 a 80), el *throughput* (Tareas/s) también se duplica. El escalamiento lineal de 20 a 40 hilos sugiere que el sistema maneja la concurrencia de manera muy eficiente.
+
+2.  **El Punto de Saturación (150 Hilos):** El salto de 80 a 150 hilos revela el límite del sistema. Aunque el *throughput* total (incluyendo errores) aumentó a 705 T/s, la tasa de éxito colapsó a **87.91%**. Esto significa que el sistema está sobrecargado; está fallando más de 1 de cada 10 tareas. La causa probable, observada en `htop`, es la **saturación total de la CPU** en la instancia del worker (`54.211.134.23`).
+
+**Conclusión:** El **rendimiento máximo estable** (con 100% de éxito) del worker es de **411 Tareas/s** (o 24,663 tareas/minuto). Superar esta tasa de inyección resulta en una degradación severa del servicio.
+
+### 7.5 Gráficas
+
+1. **Gráfico de Línea: Hilos Inyectores vs. Throughput (Tareas/s)**
+
+La siguiente gráfica muestra la capacidad de escalado.
+![codePerSecond](../cloud_load_testing/escenario_2_capa_worker_directo/150_usuarios/hilosVsThroughput.png)
+
+2. **Gráfico de Línea (Doble Eje): Hilos Inyectores vs. Tasa de Éxito (%)**
+Muestra el *throughput* (Tareas/s) como una línea ascendente y la *Tasa de Éxito* como una línea plana en 100% que **colapsa bruscamente** a 87.9% en el último punto (150 hilos). Esto identifica visualmente el punto de saturación.
+![hilosVsTasaExito](../cloud_load_testing/escenario_2_capa_worker_directo/150_usuarios/hilosVsTasaExito.png))
+
+---
+
+
+## 8. Observaciones y Recomendaciones
+
+### 8.1 Cuellos de Botella Identificados
 
 #### 🔴 Crítico - Procesamiento de Videos
 
@@ -1848,7 +1971,7 @@ Implementar:
     - Distributed Tracing con AWS X-Ray
 ```
 
-### 5.2 Recomendaciones para Próximas Pruebas
+### 8.2 Recomendaciones para Próximas Pruebas
 
 #### Fase 2 - Escalamiento (200-300 usuarios)
 
@@ -1908,7 +2031,7 @@ Validaciones:
   - Comportamiento de autoscaling (scale in/out)
 ```
 
-### 7.3 Optimizaciones Propuestas
+### 8.3 Optimizaciones Propuestas
 
 #### Arquitectura Alternativa - Procesamiento Asíncrono
 
@@ -1972,7 +2095,7 @@ def process_video_async(self, video_path, task_id):
         self.retry(exc=exc, countdown=60)
 ```
 
-### 5.4 Estimación de Capacidad
+### 8.4 Estimación de Capacidad
 
 **Basado en resultados de Fase 1:**
 
@@ -1995,9 +2118,9 @@ Limitaciones:
 
 ---
 
-## 8. Anexos
+## 9. Anexos
 
-### 8.1 Comandos Ejecutados
+### 9.1 Comandos Ejecutados
 
 #### Creación de Usuario de Prueba
 ```powershell
@@ -2048,7 +2171,7 @@ jmeter -n `
     -e -o "Fase_1_Sanidad\dashboards"
 ```
 
-### 8.2 Estructura de Archivos
+### 9.2 Estructura de Archivos
 
 ```
 cloud_load_testing/escenario_1_capa_web_autoscaling/
@@ -2081,7 +2204,7 @@ capacity_planning/
 └── pruebas_de_carga_entrega3.md         # Este documento (Entrega 3)
 ```
 
-### 8.3 Archivo de Video de Prueba
+### 9.3 Archivo de Video de Prueba
 
 ```yaml
 Archivo: sample_2560x1440.mp4
@@ -2092,7 +2215,7 @@ Formato: MP4
 Codec: H.264
 ```
 
-### 6.4 Logs de Ejecución (Extracto)
+### 9.4 Logs de Ejecución (Extracto)
 
 ```
 Creating summariser <summary>
@@ -2112,7 +2235,7 @@ Tidying up ...    @ 2025 Nov 4 19:29:11 GMT-05:00
 ... end of run
 ```
 
-### 8.5 Dashboard JMeter - Secciones Principales
+### 9.5 Dashboard JMeter - Secciones Principales
 
 El dashboard generado en `Fase_1_Sanidad/dashboards/index.html` contiene:
 
@@ -2156,7 +2279,7 @@ Donde T = umbral configurado (típicamente 500ms)
 - Correlación entre usuarios activos y throughput
 - Plateau visible en ~100 usuarios
 
-### 6.6 Métricas de CloudWatch Recomendadas
+### 9.6 Métricas de CloudWatch Recomendadas
 
 **Para visualizar en AWS Console después de la prueba:**
 
