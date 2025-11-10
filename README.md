@@ -23,7 +23,10 @@ API completa para competencia de habilidades de jugadores desarrollada con FastA
 Para instrucciones detalladas de instalación, configuración y uso del proyecto, consulte:
 
 📖 **[Documentación Completa - Entrega 1](docs/Entrega_1/README.md)**
+
 📖 **[Documentación Completa - Entrega 2](docs/Entrega_2/README.md)**
+
+📖 **[Documentación Completa - Entrega 3](docs/Entrega_3/README.md)**
 
 ## Inicio Rápido
 
