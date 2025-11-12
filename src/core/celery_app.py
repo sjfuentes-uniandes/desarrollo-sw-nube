@@ -15,10 +15,18 @@ try:
     SQS_BROKER_URL = f"sqs://"
     SQS_BACKEND_URL = f"rpc://"
 except ImportError:
-    # Fallback a Redis para desarrollo local
-    REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    SQS_BROKER_URL = REDIS_URL
-    SQS_BACKEND_URL = REDIS_URL
+    # Fallback a SQS con variables de entorno
+    SQS_QUEUE_URL = os.getenv("SQS_QUEUE_URL")
+    AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+    if SQS_QUEUE_URL:
+        queue_name = SQS_QUEUE_URL.split('/')[-1]
+        SQS_BROKER_URL = f"sqs://"
+        SQS_BACKEND_URL = f"rpc://"
+    else:
+        # Solo como último recurso para desarrollo
+        SQS_BROKER_URL = "memory://"
+        SQS_BACKEND_URL = "cache+memory://"
+        queue_name = "video-processing"
 
 # Crear instancia de Celery
 celery_app = Celery(
