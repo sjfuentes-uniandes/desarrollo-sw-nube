@@ -1,4 +1,6 @@
 boto3
+kombu[sqs]
+celery[sqs]
 locust
 fastapi==0.118.3
 uvicorn[standard]==0.37.0

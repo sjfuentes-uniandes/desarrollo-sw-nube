@@ -32,6 +32,8 @@ try:
     
     S3_BUCKET_NAME = get_parameter('/app/s3-bucket')
     AWS_ACCOUNT_ID = get_parameter('/app/aws-account-id')
+    SQS_QUEUE_URL = get_parameter('/app/sqs-queue-url')
+    AWS_REGION = get_parameter('/app/aws-region')
     
 except Exception:
     # Fallback a variables de entorno para desarrollo local
@@ -40,3 +42,5 @@ except Exception:
     REDIS_URL = os.getenv("REDIS_URL")
     S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
     AWS_ACCOUNT_ID = os.getenv("AWS_ACCOUNT_ID")
+    SQS_QUEUE_URL = os.getenv("SQS_QUEUE_URL")
+    AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
