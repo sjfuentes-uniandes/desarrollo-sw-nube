@@ -11,9 +11,14 @@ load_dotenv()
 try:
     from src.core.aws_config import SQS_QUEUE_URL, AWS_REGION, AWS_ACCOUNT_ID
     # Construir URL de SQS para Celery
-    queue_name = SQS_QUEUE_URL.split('/')[-1]
-    SQS_BROKER_URL = f"sqs://"
-    SQS_BACKEND_URL = f"rpc://"
+    if SQS_QUEUE_URL:
+        queue_name = SQS_QUEUE_URL.split('/')[-1]
+        SQS_BROKER_URL = f"sqs://"
+        SQS_BACKEND_URL = f"rpc://"
+    else:
+        SQS_BROKER_URL = "memory://"
+        SQS_BACKEND_URL = "cache+memory://"
+        queue_name = "video-processing"
 except ImportError:
     # Fallback a SQS con variables de entorno
     SQS_QUEUE_URL = os.getenv("SQS_QUEUE_URL")

@@ -37,7 +37,7 @@ User=root
 WorkingDirectory=/opt/app
 Environment=PYTHONPATH=/opt/app
 Environment=AWS_DEFAULT_REGION=us-east-1
-ExecStart=/opt/app/venv/bin/celery -A src.core.celery_app worker --loglevel=info --queues=video-processing --concurrency=2
+ExecStart=/opt/app/venv/bin/celery -A src.core.celery_app worker --loglevel=info --queues=video-app-queue --concurrency=2
 Restart=always
 RestartSec=10
 StandardOutput=append:/opt/app/celery-sqs.log
@@ -55,25 +55,3 @@ sudo systemctl start celery-sqs
 # Verificar estado
 echo "Celery SQS service status:"
 sudo systemctl status celery-sqs --no-pager
-
-# Crear script de monitoreo
-sudo tee /opt/app/monitor_worker.sh > /dev/null << 'EOF'
-#!/bin/bash
-echo "=== Celery Worker Status ==="
-sudo systemctl status celery-sqs --no-pager
-
-echo -e "\n=== Recent Logs ==="
-tail -20 /opt/app/celery-sqs.log
-
-echo -e "\n=== Active Tasks ==="
-cd /opt/app
-sudo PYTHONPATH=/opt/app ./venv/bin/celery -A src.core.celery_app inspect active
-
-echo -e "\n=== Worker Stats ==="
-cd /opt/app
-sudo PYTHONPATH=/opt/app ./venv/bin/celery -A src.core.celery_app inspect stats
-EOF
-
-sudo chmod +x /opt/app/monitor_worker.sh
-
-echo "Worker setup complete. Use /opt/app/monitor_worker.sh to check status"
