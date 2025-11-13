@@ -14,7 +14,7 @@
 ![Diagrama de componentes](../images/Componentes_entrega4.png)
 
 ### Diagrama de despliegue
-![Diagrama de despliegue](../images/Despliegue_entrega4.png)
+![Diagrama de despliegue](../images/Despliegues_entrega4.png)
 
 ### Diagrama de arquitectura en aws
 ![Diagrama de arquitectura en aws](../images/AwsEntrega4.png)
@@ -149,4 +149,4 @@ Debido a que el código necesita de ciertos parametros para su correcto funciona
 ## Integraciones
 
 #### Reporte de Análisis de SonarQube
-![Reporte SonarQube](../images/Sonar_entrega_4.png)
+![Reporte SonarQube](../images/Sonar_entrega4.png)
