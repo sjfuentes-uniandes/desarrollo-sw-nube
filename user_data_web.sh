@@ -40,6 +40,7 @@ Type=simple
 User=root
 WorkingDirectory=/opt/app
 Environment=PYTHONPATH=/opt/app
+Environment=AWS_DEFAULT_REGION=us-east-1
 ExecStart=/opt/app/venv/bin/python -m uvicorn src.main:app --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=5

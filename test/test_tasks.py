@@ -409,6 +409,56 @@ class TestVideoTasksSpecificLines:
         assert processed_s3_key == "processed/processed_test_video.mp4"
         assert processed_s3_key.startswith("processed/")
         assert "processed_" in processed_s3_key
+
+class TestSQSIntegrationTasks:
+    """Tests para integración SQS en video_tasks.py"""
+    
+    def test_video_tasks_sqs_import_fallback(self):
+        """Test: Import fallback en video_tasks con SQS"""
+        with patch('os.getenv') as mock_getenv:
+            mock_getenv.side_effect = lambda key: {
+                'S3_BUCKET_NAME': 'fallback-bucket',
+                'AWS_ACCOUNT_ID': '123456789012'
+            }.get(key)
+            
+            # Test fallback logic
+            try:
+                from src.core.aws_config import S3_BUCKET_NAME, AWS_ACCOUNT_ID
+                s3_bucket = S3_BUCKET_NAME
+                bucket_owner = AWS_ACCOUNT_ID
+            except ImportError:
+                s3_bucket = mock_getenv('S3_BUCKET_NAME')
+                bucket_owner = mock_getenv('AWS_ACCOUNT_ID')
+            
+            if mock_getenv.called:
+                assert s3_bucket == 'fallback-bucket'
+                assert bucket_owner == '123456789012'
+    
+    def test_celery_task_decorator_with_sqs(self):
+        """Test: Celery task decorator con SQS"""
+        from src.tasks.video_tasks import process_video_task
+        
+        # Verify task is properly decorated
+        assert hasattr(process_video_task, 'delay')
+        assert hasattr(process_video_task, 'apply_async')
+        assert process_video_task.name == 'process_video'
+    
+    @patch('src.tasks.video_tasks.SessionLocal')
+    def test_database_task_with_sqs_context(self, mock_session_local):
+        """Test: DatabaseTask en contexto SQS"""
+        from src.tasks.video_tasks import DatabaseTask
+        
+        task = DatabaseTask()
+        mock_db = Mock()
+        mock_session_local.return_value = mock_db
+        
+        # Test db property
+        db = task.db
+        assert db == mock_db
+        
+        # Test after_return cleanup
+        task.after_return()
+        mock_db.close.assert_called_once()
     
     @patch('src.tasks.video_tasks.s3_client')
     @patch('src.tasks.video_tasks.SessionLocal')

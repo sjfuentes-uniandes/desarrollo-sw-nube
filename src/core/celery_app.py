@@ -7,21 +7,41 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Configuración de Redis como broker
+# Configuración de SQS como broker
 try:
-    from src.core.aws_config import REDIS_URL
+    from src.core.aws_config import SQS_QUEUE_URL, AWS_REGION, AWS_ACCOUNT_ID
+    # Construir URL de SQS para Celery
+    if SQS_QUEUE_URL:
+        queue_name = SQS_QUEUE_URL.split('/')[-1]
+        SQS_BROKER_URL = f"sqs://"
+        SQS_BACKEND_URL = f"rpc://"
+    else:
+        SQS_BROKER_URL = "memory://"
+        SQS_BACKEND_URL = "cache+memory://"
+        queue_name = "video-processing"
 except ImportError:
-    REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    # Fallback a SQS con variables de entorno
+    SQS_QUEUE_URL = os.getenv("SQS_QUEUE_URL")
+    AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+    if SQS_QUEUE_URL:
+        queue_name = SQS_QUEUE_URL.split('/')[-1]
+        SQS_BROKER_URL = f"sqs://"
+        SQS_BACKEND_URL = f"rpc://"
+    else:
+        # Solo como último recurso para desarrollo
+        SQS_BROKER_URL = "memory://"
+        SQS_BACKEND_URL = "cache+memory://"
+        queue_name = "video-processing"
 
 # Crear instancia de Celery
 celery_app = Celery(
     "video_processing",
-    broker=REDIS_URL,
-    backend=REDIS_URL,
+    broker=SQS_BROKER_URL,
+    backend=SQS_BACKEND_URL,
     include=['src.tasks.video_tasks']
 )
 
-# Configuración adicional
+# Configuración adicional para SQS
 celery_app.conf.update(
     task_serializer='json',
     accept_content=['json'],
@@ -31,4 +51,16 @@ celery_app.conf.update(
     task_track_started=True,
     task_time_limit=30 * 60,  # 30 minutos máximo por tarea
     result_expires=3600,  # Los resultados expiran en 1 hora
+    
+    # Configuración específica para SQS
+    broker_transport_options={
+        'region': AWS_REGION if 'AWS_REGION' in globals() else 'us-east-1',
+        'visibility_timeout': 3600,  # 1 hora para procesar
+        'polling_interval': 1,  # Polling cada segundo
+        'wait_time_seconds': 20,  # Long polling
+    },
+    task_default_queue=queue_name if 'queue_name' in locals() else 'video-processing',
+    task_routes={
+        'src.tasks.video_tasks.process_video_task': {'queue': queue_name if 'queue_name' in locals() else 'video-processing'}
+    }
 )
