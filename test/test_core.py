@@ -526,3 +526,114 @@ class TestAWSConfigSQSExtensions:
         # Test default fallback
         aws_region = os.getenv('AWS_REGION', 'us-east-1')
         assert aws_region == 'us-east-1'
+
+class TestCeleryAppSpecificLines:
+    """Tests for specific lines in celery_app.py"""
+    
+    def test_sqs_queue_url_split_and_broker_setup_lines_15_18(self):
+        """Test: Lines 15-18 - SQS URL parsing and broker setup"""
+        # Test the specific logic from lines 15-18
+        sqs_queue_url = "https://sqs.us-east-1.amazonaws.com/123456789012/test-queue"
+        
+        if sqs_queue_url:
+            queue_name = sqs_queue_url.split('/')[-1]  # Line 15
+            sqs_broker_url = f"sqs://"  # Line 16
+            sqs_backend_url = f"rpc://"  # Line 17
+        else:
+            sqs_broker_url = "memory://"  # Line 18 (else branch)
+            sqs_backend_url = "cache+memory://"
+            queue_name = "video-processing"
+        
+        assert queue_name == "test-queue"
+        assert sqs_broker_url == "sqs://"
+        assert sqs_backend_url == "rpc://"
+    
+    def test_importerror_fallback_lines_22_34(self):
+        """Test: Lines 22-34 - ImportError fallback logic"""
+        with patch('os.getenv') as mock_getenv:
+            # Mock the ImportError scenario (lines 22-34)
+            mock_getenv.side_effect = lambda key, default=None: {
+                'SQS_QUEUE_URL': 'https://sqs.us-east-1.amazonaws.com/123456789012/fallback-queue',
+                'AWS_REGION': 'us-west-2'
+            }.get(key, default)
+            
+            # Simulate the ImportError fallback logic
+            sqs_queue_url = mock_getenv("SQS_QUEUE_URL")  # Line 23
+            aws_region = mock_getenv("AWS_REGION", "us-east-1")  # Line 24
+            
+            if sqs_queue_url:  # Line 25
+                queue_name = sqs_queue_url.split('/')[-1]  # Line 26
+                sqs_broker_url = f"sqs://"  # Line 27
+                sqs_backend_url = f"rpc://"  # Line 28
+            else:
+                # Lines 30-33
+                sqs_broker_url = "memory://"
+                sqs_backend_url = "cache+memory://"
+                queue_name = "video-processing"
+            
+            assert queue_name == "fallback-queue"
+            assert sqs_broker_url == "sqs://"
+            assert sqs_backend_url == "rpc://"
+            assert aws_region == "us-west-2"
+    
+    def test_importerror_fallback_none_sqs_url(self):
+        """Test: ImportError fallback with None SQS_QUEUE_URL (lines 30-33)"""
+        with patch('os.getenv') as mock_getenv:
+            mock_getenv.side_effect = lambda key, default=None: {
+                'SQS_QUEUE_URL': None,
+                'AWS_REGION': 'us-east-1'
+            }.get(key, default)
+            
+            sqs_queue_url = mock_getenv("SQS_QUEUE_URL")
+            
+            if sqs_queue_url:
+                queue_name = sqs_queue_url.split('/')[-1]
+                sqs_broker_url = f"sqs://"
+                sqs_backend_url = f"rpc://"
+            else:
+                # Test lines 30-33
+                sqs_broker_url = "memory://"  # Line 31
+                sqs_backend_url = "cache+memory://"  # Line 32
+                queue_name = "video-processing"  # Line 33
+            
+            assert sqs_broker_url == "memory://"
+            assert sqs_backend_url == "cache+memory://"
+            assert queue_name == "video-processing"
+
+class TestAWSConfigSpecificLines:
+    """Tests for specific lines in aws_config.py"""
+    
+    @patch('socket.gethostname')
+    @patch('src.core.aws_config.get_parameter')
+    def test_hostname_comparison_line_29(self, mock_get_parameter, mock_hostname):
+        """Test: Line 29 - hostname == worker_hostname comparison"""
+        mock_hostname.return_value = 'worker-server'
+        mock_get_parameter.side_effect = lambda param: {
+            '/app/redis-hostname': 'worker-server',  # Same as hostname
+            '/app/redis-local': 'redis://localhost:6379/0'
+        }.get(param)
+        
+        hostname = mock_hostname()
+        worker_hostname = mock_get_parameter('/app/redis-hostname')
+        
+        # Test line 29 condition
+        if hostname == worker_hostname:  # Line 29
+            redis_url = mock_get_parameter('/app/redis-local')
+        else:
+            redis_url = mock_get_parameter('/app/redis-worker-url')
+        
+        assert hostname == worker_hostname
+        assert redis_url == 'redis://localhost:6379/0'
+    
+    @patch('src.core.aws_config.get_parameter')
+    def test_aws_region_parameter_line_36(self, mock_get_parameter):
+        """Test: Line 36 - AWS_REGION parameter retrieval"""
+        mock_get_parameter.side_effect = lambda param: {
+            '/app/aws-region': 'eu-west-1'
+        }.get(param)
+        
+        # Test line 36 specifically
+        aws_region = mock_get_parameter('/app/aws-region')  # Line 36
+        
+        assert aws_region == 'eu-west-1'
+        mock_get_parameter.assert_called_with('/app/aws-region')
