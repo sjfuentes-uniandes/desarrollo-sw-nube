@@ -599,6 +599,91 @@ class TestCeleryAppSpecificLines:
             assert sqs_broker_url == "memory://"
             assert sqs_backend_url == "cache+memory://"
             assert queue_name == "video-processing"
+    
+    @patch('src.core.aws_config.SQS_QUEUE_URL', 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue')
+    @patch('src.core.aws_config.AWS_REGION', 'us-east-1')
+    def test_module_execution_lines_15_17(self):
+        """Test: Force module execution to cover lines 15-17"""
+        import sys
+        
+        # Remove module to force reload
+        if 'src.core.celery_app' in sys.modules:
+            del sys.modules['src.core.celery_app']
+        
+        # Import will execute lines 15-17
+        import src.core.celery_app as celery_module
+        
+        # Verify the module executed the SQS configuration
+        assert hasattr(celery_module, 'queue_name')
+        assert hasattr(celery_module, 'SQS_BROKER_URL')
+        assert hasattr(celery_module, 'SQS_BACKEND_URL')
+    
+    @patch('src.core.aws_config.SQS_QUEUE_URL', None)
+    def test_module_execution_lines_18_20(self):
+        """Test: Force module execution to cover lines 18-20 (else branch)"""
+        import sys
+        
+        # Remove module to force reload
+        if 'src.core.celery_app' in sys.modules:
+            del sys.modules['src.core.celery_app']
+        
+        # Import will execute lines 18-20 (else branch)
+        import src.core.celery_app as celery_module
+        
+        # Verify the else branch was executed
+        assert celery_module.SQS_BROKER_URL == "memory://"
+        assert celery_module.SQS_BACKEND_URL == "cache+memory://"
+        assert celery_module.queue_name == "video-processing"
+    
+    @patch('os.getenv')
+    def test_module_execution_importerror_lines_22_34(self, mock_getenv):
+        """Test: Force ImportError to cover lines 22-34"""
+        import sys
+        
+        # Mock environment variables for ImportError fallback
+        mock_getenv.side_effect = lambda key, default=None: {
+            'SQS_QUEUE_URL': 'https://sqs.us-east-1.amazonaws.com/123456789012/import-error-queue',
+            'AWS_REGION': 'us-west-1'
+        }.get(key, default)
+        
+        # Remove modules to force reload
+        if 'src.core.celery_app' in sys.modules:
+            del sys.modules['src.core.celery_app']
+        
+        # Mock the aws_config import to raise ImportError
+        with patch.dict('sys.modules', {'src.core.aws_config': None}):
+            # Import will execute lines 22-34 (ImportError branch)
+            import src.core.celery_app as celery_module
+            
+            # Verify ImportError fallback was executed (lines 22-34)
+            assert hasattr(celery_module, 'SQS_QUEUE_URL')
+            assert hasattr(celery_module, 'AWS_REGION')
+            assert hasattr(celery_module, 'queue_name')
+    
+    @patch('os.getenv')
+    def test_module_execution_importerror_none_sqs_lines_30_34(self, mock_getenv):
+        """Test: Force ImportError with None SQS_QUEUE_URL to cover lines 30-34"""
+        import sys
+        
+        # Mock environment variables with None SQS_QUEUE_URL
+        mock_getenv.side_effect = lambda key, default=None: {
+            'SQS_QUEUE_URL': None,
+            'AWS_REGION': 'us-east-1'
+        }.get(key, default)
+        
+        # Remove modules to force reload
+        if 'src.core.celery_app' in sys.modules:
+            del sys.modules['src.core.celery_app']
+        
+        # Mock the aws_config import to raise ImportError
+        with patch.dict('sys.modules', {'src.core.aws_config': None}):
+            # Import will execute lines 30-34 (else branch in ImportError)
+            import src.core.celery_app as celery_module
+            
+            # Verify the else branch in ImportError was executed (lines 31-33)
+            assert celery_module.SQS_BROKER_URL == "memory://"
+            assert celery_module.SQS_BACKEND_URL == "cache+memory://"
+            assert celery_module.queue_name == "video-processing"
 
 class TestAWSConfigSpecificLines:
     """Tests for specific lines in aws_config.py"""
@@ -637,3 +722,100 @@ class TestAWSConfigSpecificLines:
         
         assert aws_region == 'eu-west-1'
         mock_get_parameter.assert_called_with('/app/aws-region')
+    
+    @patch('socket.gethostname')
+    @patch('boto3.client')
+    def test_module_execution_line_29_redis_local(self, mock_boto_client, mock_hostname):
+        """Test: Force module execution to cover line 29 - REDIS_URL = get_parameter('/app/redis-local')"""
+        import sys
+        import importlib
+        
+        # Mock boto3 clients
+        mock_secrets_client = Mock()
+        mock_ssm_client = Mock()
+        
+        def client_side_effect(service, **kwargs):
+            if service == 'secretsmanager':
+                return mock_secrets_client
+            elif service == 'ssm':
+                return mock_ssm_client
+            return Mock()
+        
+        mock_boto_client.side_effect = client_side_effect
+        
+        # Mock successful AWS calls
+        mock_secrets_client.get_secret_value.side_effect = [
+            {'SecretString': '{"username": "user", "password": "pass", "host": "localhost", "port": "5432", "dbname": "db"}'},
+            {'SecretString': '{"key": "secret-key"}'}
+        ]
+        
+        # Mock hostname to match worker_hostname (triggers line 29)
+        mock_hostname.return_value = 'worker-server'
+        
+        # Mock parameter store responses
+        mock_ssm_client.get_parameter.side_effect = [
+            {'Parameter': {'Value': 'worker-server'}},  # redis-hostname
+            {'Parameter': {'Value': 'redis://localhost:6379/0'}},  # redis-local (Line 29)
+            {'Parameter': {'Value': 'test-bucket'}},  # s3-bucket
+            {'Parameter': {'Value': '123456789012'}},  # aws-account-id
+            {'Parameter': {'Value': 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue'}},  # sqs-queue-url
+            {'Parameter': {'Value': 'us-east-1'}}  # aws-region
+        ]
+        
+        # Remove module to force reload
+        if 'src.core.aws_config' in sys.modules:
+            del sys.modules['src.core.aws_config']
+        
+        # Import will execute line 29 (hostname == worker_hostname branch)
+        import src.core.aws_config as aws_config
+        
+        # Verify line 29 was executed by checking parameter calls
+        parameter_calls = [call[1]['Name'] for call in mock_ssm_client.get_parameter.call_args_list]
+        assert '/app/redis-local' in parameter_calls
+        assert hasattr(aws_config, 'REDIS_URL')
+    
+    @patch('boto3.client')
+    def test_module_execution_line_36_aws_region(self, mock_boto_client):
+        """Test: Force module execution to cover line 36 - AWS_REGION = get_parameter('/app/aws-region')"""
+        import sys
+        
+        # Mock boto3 clients
+        mock_secrets_client = Mock()
+        mock_ssm_client = Mock()
+        
+        def client_side_effect(service, **kwargs):
+            if service == 'secretsmanager':
+                return mock_secrets_client
+            elif service == 'ssm':
+                return mock_ssm_client
+            return Mock()
+        
+        mock_boto_client.side_effect = client_side_effect
+        
+        # Mock successful AWS calls
+        mock_secrets_client.get_secret_value.side_effect = [
+            {'SecretString': '{"username": "user", "password": "pass", "host": "localhost", "port": "5432", "dbname": "db"}'},
+            {'SecretString': '{"key": "secret-key"}'}
+        ]
+        
+        # Mock parameter store responses
+        mock_ssm_client.get_parameter.side_effect = [
+            {'Parameter': {'Value': 'worker-server'}},  # redis-hostname
+            {'Parameter': {'Value': 'redis://worker:6379/0'}},  # redis-worker-url
+            {'Parameter': {'Value': 'test-bucket'}},  # s3-bucket
+            {'Parameter': {'Value': '123456789012'}},  # aws-account-id
+            {'Parameter': {'Value': 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue'}},  # sqs-queue-url
+            {'Parameter': {'Value': 'eu-central-1'}}  # aws-region (Line 36)
+        ]
+        
+        # Remove module to force reload
+        if 'src.core.aws_config' in sys.modules:
+            del sys.modules['src.core.aws_config']
+        
+        # Import will execute line 36
+        import src.core.aws_config as aws_config
+        
+        # Verify line 36 was executed by checking parameter calls
+        parameter_calls = [call[1]['Name'] for call in mock_ssm_client.get_parameter.call_args_list]
+        assert '/app/aws-region' in parameter_calls
+        assert hasattr(aws_config, 'AWS_REGION')
