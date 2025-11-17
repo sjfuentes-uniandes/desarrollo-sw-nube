@@ -142,9 +142,17 @@ Debido a que el código necesita de ciertos parametros para su correcto funciona
 ## Pruebas de Capacidad
 
 ### `cloud_load_testing/`
-
+- **[escenario_1_capa_web_autoscalingV2/](../../cloud_load_testing/escenario_1_capa_web_autoscalingV2/)**: Pruebas de carga con JMeter para la arquitectura con SQS + Workers
+  - Escenarios de 100, 200 y 300 usuarios concurrentes
+  - Pruebas de escalamiento automático
+  - Dashboards de resultados HTML
 
 ### `capacity_planning/`
+- **[pruebas_de_carga_entrega4.md](../../capacity_planning/pruebas_de_carga_entrega4.md)**: Documentación completa de las pruebas de carga de la Entrega 4
+  - Pruebas con Locust (Workers SQS)
+  - Pruebas con JMeter (100, 200, 300 usuarios)
+  - Análisis comparativo con Entrega 3
+  - Recomendaciones y optimizaciones
 
 ## Integraciones
 
