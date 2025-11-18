@@ -62,13 +62,18 @@ celery_app.conf.update(
         'queue_name_prefix': '',  # Sin prefijo
         'predefined_queues': {
             queue_name: {
-                'url': SQS_QUEUE_URL if 'SQS_QUEUE_URL' in globals() else None
+                'url': SQS_QUEUE_URL if 'SQS_QUEUE_URL' in globals() and SQS_QUEUE_URL else None
             }
         }
     },
     broker_url=SQS_BROKER_URL,
     task_default_queue=queue_name,
     task_routes={
-        'src.tasks.video_tasks.process_video_task': {'queue': queue_name}
-    }
+        'src.tasks.video_tasks.process_video_task': {'queue': queue_name},
+        'process_video': {'queue': queue_name}
+    },
+    # Evitar generación automática de colas
+    task_create_missing_queues=False,
+    # Usar solo colas predefinidas
+    task_always_eager=False
 )
