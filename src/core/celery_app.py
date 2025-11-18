@@ -10,7 +10,7 @@ load_dotenv()
 # Configuración de SQS como broker
 try:
     from src.core.aws_config import SQS_QUEUE_URL, AWS_REGION, AWS_ACCOUNT_ID
-    # Construir URL de SQS para Celery
+    # Usar la cola SQS existente
     if SQS_QUEUE_URL:
         queue_name = SQS_QUEUE_URL.split('/')[-1]
         SQS_BROKER_URL = f"sqs://"
@@ -23,6 +23,7 @@ except ImportError:
     # Fallback a SQS con variables de entorno
     SQS_QUEUE_URL = os.getenv("SQS_QUEUE_URL")
     AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+    AWS_ACCOUNT_ID = os.getenv("AWS_ACCOUNT_ID")
     if SQS_QUEUE_URL:
         queue_name = SQS_QUEUE_URL.split('/')[-1]
         SQS_BROKER_URL = f"sqs://"
@@ -58,9 +59,16 @@ celery_app.conf.update(
         'visibility_timeout': 3600,  # 1 hora para procesar
         'polling_interval': 1,  # Polling cada segundo
         'wait_time_seconds': 20,  # Long polling
+        'queue_name_prefix': '',  # Sin prefijo
+        'predefined_queues': {
+            'video-app-sqs': {
+                'url': SQS_QUEUE_URL if 'SQS_QUEUE_URL' in globals() else None
+            }
+        }
     },
-    task_default_queue=queue_name if 'queue_name' in locals() else 'video-processing',
+    broker_url=SQS_BROKER_URL,
+    task_default_queue='video-app-sqs',
     task_routes={
-        'src.tasks.video_tasks.process_video_task': {'queue': queue_name if 'queue_name' in locals() else 'video-processing'}
+        'src.tasks.video_tasks.process_video_task': {'queue': 'video-app-sqs'}
     }
 )

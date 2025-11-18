@@ -1,0 +1,25 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Instalar FFmpeg y dependencias del sistema necesarias para PostgreSQL y HTTPS
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    libpq-dev \
+    gcc \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copiar requirements
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copiar código fuente
+COPY src/ ./src/
+
+# Establecer PYTHONPATH
+ENV PYTHONPATH=/app
+
+# Comando para ejecutar el worker de Celery
+CMD ["celery", "-A", "src.core.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
