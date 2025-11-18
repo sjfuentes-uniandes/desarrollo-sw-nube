@@ -113,7 +113,11 @@ async def upload_video(
         # PASO 4: Encolar tarea de procesamiento asíncrono en Celery
         # La tarea se ejecuta en segundo plano por workers de Celery
         from src.core.celery_app import queue_name
-        task = process_video_task.apply_async(args=[new_video.id], queue=queue_name)
+        task = process_video_task.apply_async(
+            args=[new_video.id], 
+            queue=queue_name,
+            routing_key=queue_name
+        )
         
         # PASO 5: Actualizar el video con el task_id
         new_video.task_id = task.id
