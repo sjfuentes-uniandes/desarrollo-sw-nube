@@ -8,17 +8,9 @@ from io import BytesIO
 import time
 import os
 
-# Set environment variables for testing
-os.environ.setdefault('DATABASE_URL', 'sqlite:///./test.db')
-os.environ.setdefault('SECRET_KEY', 'test-secret-key')
-os.environ.setdefault('REDIS_URL', 'redis://localhost:6379/0')
-os.environ.setdefault('S3_BUCKET_NAME', 'test-bucket')
-
-# Mock boto3 before importing
-with patch('boto3.client'):
-    from src.main import app
-    from src.db.database import get_db, Base
-    from src.models.db_models import User, VideoStatus, Video, Vote
+from src.main import app
+from src.db.database import get_db, Base
+from src.models.db_models import User, VideoStatus, Video, Vote
 
 # Test database
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
@@ -64,7 +56,7 @@ class TestVideoUpload:
     """Pruebas para el endpoint de subida de videos"""
     
     @patch('src.routers.video_router.s3_client.upload_fileobj')
-    @patch('src.routers.video_router.process_video_task.delay')
+    @patch('src.routers.video_router.process_video_task.apply_async')
     def test_upload_video_success(self, mock_task, mock_s3_upload, client, auth_headers):
         """Test: Subida exitosa de video"""
         mock_task.return_value = Mock(id="test-task-id-123")
@@ -183,7 +175,7 @@ class TestVideoUpload:
         assert response.status_code == 422
     
     @patch('src.routers.video_router.s3_client.upload_fileobj')
-    @patch('src.routers.video_router.process_video_task.delay')
+    @patch('src.routers.video_router.process_video_task.apply_async')
     def test_upload_video_saves_to_database(self, mock_task, mock_s3_upload, client, auth_headers):
         """Test: El video se guarda en la base de datos"""
         mock_task.return_value = Mock(id="task-123")

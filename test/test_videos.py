@@ -8,18 +8,10 @@ from io import BytesIO
 import time
 import os
 
-# Set environment variables for testing
-os.environ.setdefault('DATABASE_URL', 'sqlite:///./test.db')
-os.environ.setdefault('SECRET_KEY', 'test-secret-key')
-os.environ.setdefault('REDIS_URL', 'redis://localhost:6379/0')
-os.environ.setdefault('S3_BUCKET_NAME', 'test-bucket')
-
-# Mock boto3 before importing
-with patch('boto3.client'):
-    from src.main import app
-    from src.db.database import get_db, Base
-    from src.models.db_models import User, VideoStatus, Video, Vote
-    from src.core.security import create_access_token, get_password_hash
+from src.main import app
+from src.db.database import get_db, Base
+from src.models.db_models import User, VideoStatus, Video, Vote
+from src.core.security import create_access_token, get_password_hash
 
 # Test database
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
