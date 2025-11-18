@@ -61,14 +61,14 @@ celery_app.conf.update(
         'wait_time_seconds': 20,  # Long polling
         'queue_name_prefix': '',  # Sin prefijo
         'predefined_queues': {
-            'video-app-sqs': {
+            queue_name: {
                 'url': SQS_QUEUE_URL if 'SQS_QUEUE_URL' in globals() else None
             }
         }
     },
     broker_url=SQS_BROKER_URL,
-    task_default_queue='video-app-sqs',
+    task_default_queue=queue_name,
     task_routes={
-        'src.tasks.video_tasks.process_video_task': {'queue': 'video-app-sqs'}
+        'src.tasks.video_tasks.process_video_task': {'queue': queue_name}
     }
 )
