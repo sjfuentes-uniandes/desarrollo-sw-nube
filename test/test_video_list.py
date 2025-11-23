@@ -8,17 +8,9 @@ from io import BytesIO
 import time
 import os
 
-# Set environment variables for testing
-os.environ.setdefault('DATABASE_URL', 'sqlite:///./test.db')
-os.environ.setdefault('SECRET_KEY', 'test-secret-key')
-os.environ.setdefault('REDIS_URL', 'redis://localhost:6379/0')
-os.environ.setdefault('S3_BUCKET_NAME', 'test-bucket')
-
-# Mock boto3 before importing
-with patch('boto3.client'):
-    from src.main import app
-    from src.db.database import get_db, Base
-    from src.models.db_models import User, VideoStatus, Video, Vote
+from src.main import app
+from src.db.database import get_db, Base
+from src.models.db_models import User, VideoStatus, Video, Vote
 
 # Test database
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
@@ -360,7 +352,7 @@ class TestVideoWorkflow:
     """Pruebas del flujo completo de videos"""
     
     @patch('src.routers.video_router.s3_client.upload_fileobj')
-    @patch('src.routers.video_router.process_video_task.delay')
+    @patch('src.routers.video_router.process_video_task.apply_async')
     def test_complete_video_workflow(self, mock_task, mock_s3_upload, client, auth_headers):
         """Test: Flujo completo - Upload, List, Get"""
         mock_task.return_value = Mock(id="task-complete")
@@ -395,7 +387,7 @@ class TestVideoRouterCoverage:
     
     @patch('src.routers.video_router.s3_client.delete_object')
     @patch('src.routers.video_router.s3_client.upload_fileobj')
-    @patch('src.routers.video_router.process_video_task.delay')
+    @patch('src.routers.video_router.process_video_task.apply_async')
     def test_upload_video_file_cleanup_on_exception(self, mock_task, mock_s3_upload, mock_s3_delete, client, auth_headers):
         """Test: Limpieza de archivos cuando ocurre excepción después de guardar"""
         mock_task.side_effect = Exception("Task error")

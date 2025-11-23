@@ -123,3 +123,189 @@ p95: 46000.00 ms
 
 Estos archivos permanecen en el repositorio para auditoría y replicabilidad.
 
+---
+
+# 📊 Pruebas de Carga - Capa Web con Arquitectura SQS + Worker (JMeter)
+
+> **Fecha de ejecución:** 16 de noviembre de 2025  
+> **Infraestructura evaluada:** ALB + Auto Scaling (API Web) + SQS + Workers  
+> **Herramienta:** Apache JMeter 5.6.3  
+> **Objetivo:** Evaluar rendimiento de la API web con arquitectura desacoplada SQS + Worker
+
+---
+
+## 8. Escenario 1: 100 Usuarios Concurrentes
+
+### 8.1 Configuración del Escenario
+
+| Parámetro | Valor |
+|-----------|-------|
+| **Usuarios concurrentes** | 100 |
+| **Rampa de inicio** | 0 → 100 usuarios en 5 minutos |
+| **Sostenimiento** | 100 usuarios por 5 minutos |
+| **Rampa de descenso** | 100 → 0 usuarios en 2 minutos |
+| **Duración total** | 10 minutos 33 segundos |
+| **Fecha de ejecución** | 16/11/2025 |
+
+### 8.2 Resultados
+
+| Métrica | Valor |
+|---------|-------|
+| **Total de Requests** | 356 |
+| **Requests Exitosos** | 299 (84.1%) |
+| **Requests Fallidos** | 57 (15.9%) |
+| **Tiempo Promedio** | 136.14 segundos |
+| **Throughput** | 0.6 req/s |
+
+### 8.3 Análisis
+
+- ✅ **Tasa de éxito aceptable**: 84.1% de requests completados exitosamente
+- ⚠️ **Tiempo de respuesta elevado**: Promedio de 136 segundos por request
+- El sistema procesa establemente bajo carga de 100 usuarios concurrentes
+- Se observa comportamiento consistente del desacoplamiento API-Worker mediante SQS
+
+---
+
+## 9. Escenario 2: 200 Usuarios Concurrentes
+
+### 9.1 Configuración del Escenario
+
+| Parámetro | Valor |
+|-----------|-------|
+| **Usuarios concurrentes** | 200 |
+| **Rampa de inicio** | 0 → 200 usuarios en 5 minutos |
+| **Sostenimiento** | 200 usuarios por 5 minutos |
+| **Rampa de descenso** | 200 → 0 usuarios en 2 minutos |
+| **Duración total** | 11 minutos 31 segundos |
+| **Fecha de ejecución** | 16/11/2025 |
+
+### 9.2 Resultados
+
+| Métrica | Valor |
+|---------|-------|
+| **Total de Requests** | 440 |
+| **Requests Exitosos** | 292 (66.4%) |
+| **Requests Fallidos** | 148 (33.6%) |
+| **Tiempo Promedio** | ~180 segundos |
+| **Throughput** | 0.6 req/s |
+
+### 9.3 Análisis
+
+- ⚠️ **Tasa de éxito moderada**: 66.4% de requests exitosos bajo carga de 200 usuarios
+- ❌ **Aumento significativo de errores**: 33.6% de tasa de error indica saturación del sistema
+- El sistema muestra inestabilidad bajo carga media-alta
+- Los workers requieren optimización para absorber mejor la carga
+- Posible saturación de cola SQS o timeouts en procesamiento asíncrono
+
+---
+
+## 10. Escenario 3: 300 Usuarios Concurrentes
+
+### 10.1 Configuración del Escenario
+
+| Parámetro | Valor |
+|-----------|-------|
+| **Usuarios concurrentes** | 300 |
+| **Rampa de inicio** | 0 → 300 usuarios en 5 minutos |
+| **Sostenimiento** | 300 usuarios por 5 minutos |
+| **Rampa de descenso** | 300 → 0 usuarios en 2 minutos |
+| **Duración total** | ~12 minutos |
+| **Fecha de ejecución** | 16/11/2025 |
+
+### 10.2 Resultados
+
+| Métrica | Valor |
+|---------|-------|
+| **Total de Requests** | 705 |
+| **Requests Exitosos** | 520 (73.7%) |
+| **Requests Fallidos** | 185 (26.3%) |
+| **Tiempo Promedio** | ~150 segundos |
+| **Throughput** | 1.0 req/s |
+
+### 10.3 Análisis
+
+- ✅ **Mejor rendimiento relativo**: 73.7% de tasa de éxito con 300 usuarios concurrentes
+- ✅ **Throughput mejorado**: 1.0 req/s, indicando mejor utilización de recursos
+- ⚠️ **Tasa de error considerable**: 26.3% de fallos sugiere límites del sistema
+- El autoscaling de workers está funcionando, permitiendo procesar mayor carga
+- Tiempo de respuesta reducido (150s) comparado con escenarios de menor carga
+
+---
+
+## 11. Análisis Comparativo Global
+
+### 11.1 Resumen de los 3 Escenarios
+
+| Escenario | Usuarios | Requests | Tasa de Éxito | Errores | Tiempo Promedio | Throughput |
+|-----------|----------|----------|---------------|---------|-----------------|------------|
+| 1 | 100 | 356 | 84.1% | 15.9% | 136s | 0.6 req/s |
+| 2 | 200 | 440 | 66.4% | 33.6% | 180s | 0.6 req/s |
+| 3 | 300 | 705 | 73.7% | 26.3% | 150s | 1.0 req/s |
+
+### 11.2 Hallazgos Principales
+
+**Comportamiento del Sistema:**
+
+📊 **Patrones Observados:**
+- **Escenario 1 (100 usuarios)**: Mejor tasa de éxito (84.1%), sistema estable
+- **Escenario 2 (200 usuarios)**: Mayor degradación (66.4%), punto crítico de saturación
+- **Escenario 3 (300 usuarios)**: Recuperación parcial (73.7%), autoscaling efectivo
+
+✅ **Fortalezas de la Arquitectura:**
+- Desacoplamiento entre API y procesamiento mediante SQS
+- Escalamiento independiente de workers
+- Mayor resiliencia con mensajes persistentes en SQS
+- Autoscaling responde a la demanda (visible en escenario 300 usuarios)
+
+⚠️ **Áreas de Mejora:**
+- Tasa de errores aumenta significativamente con 200 usuarios (33.6%)
+- Throughput limitado en escenarios 100 y 200 (0.6 req/s)
+- Tiempos de respuesta elevados en todos los escenarios
+- Variabilidad en comportamiento entre escenarios
+
+⚠️ **Cuellos de Botella Identificados:**
+1. **Configuración de Workers**: No escalan eficientemente
+2. **SQS Visibility Timeout**: Mensajes pueden estar expirando
+3. **Dead Letter Queue**: Posible acumulación de mensajes fallidos
+4. **Auto Scaling Delays**: Workers tardan en lanzarse
+5. **Network Latency**: Overhead de comunicación SQS
+
+### 11.3 Recomendaciones
+
+**Optimizaciones Críticas:**
+
+1. **Configuración de Auto Scaling:**
+   - Reducir cooldown period de workers
+   - Ajustar métricas de scaling (usar backlog SQS)
+   - Aumentar capacidad mínima de workers
+
+2. **Configuración de SQS:**
+   - Aumentar visibility timeout (300s → 600s)
+   - Configurar Dead Letter Queue apropiadamente
+   - Habilitar Long Polling para reducir requests vacíos
+
+3. **Optimización de Workers:**
+   - Mejorar eficiencia de procesamiento
+   - Implementar retry logic robusto
+   - Monitorear y reducir timeouts
+
+4. **Monitoreo y Alertas:**
+   - CloudWatch dashboards para SQS metrics
+   - Alertas por backlog de mensajes
+   - Tracking de success/error rate en tiempo real
+
+**Próximos Pasos:**
+
+- [ ] Implementar optimizaciones recomendadas
+- [ ] Re-ejecutar pruebas para validar mejoras
+- [ ] Documentar métricas de CloudWatch
+- [ ] Realizar pruebas de soak (larga duración)
+- [ ] Validar comportamiento de Dead Letter Queue
+
+---
+
+**Documento actualizado:** 16/11/2025  
+**Versión:** 2.0  
+**Estado:** Completo con 3 escenarios documentados
+
+---
