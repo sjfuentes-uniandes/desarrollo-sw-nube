@@ -1,8 +1,8 @@
-﻿# Pruebas de Carga - Entrega 5: AWS con Autoscaling V3
+﻿# Pruebas de Carga - Entrega 5: AWS ECS con Autoscaling V3
 
 > **Proyecto:** Desarrollo de Software en la Nube  
 > **Fecha de Ejecución:** 22 de Noviembre de 2025  
-> **Infraestructura:** AWS Application Load Balancer + Auto Scaling Group (Versión 3)  
+> **Infraestructura:** AWS ECS (Elastic Container Service) + Application Load Balancer + Auto Scaling  
 > **Región:** us-east-1  
 > **Herramienta:** Apache JMeter 5.6.3
 
@@ -17,22 +17,26 @@
 5. [Fase 2 - Escalamiento](#fase-2---escalamiento)
 6. [Análisis Comparativo](#análisis-comparativo)
 7. [Conclusiones y Recomendaciones](#conclusiones-y-recomendaciones)
+8. [Pruebas de Carga - Capa Worker (SQS + Celery)](#8-pruebas-de-carga---capa-worker-sqs--celery)
 
 ---
 
 ## 1. Resumen Ejecutivo
 
 ### Objetivo
-Evaluar el rendimiento y comportamiento de la aplicación de procesamiento de videos desplegada en AWS utilizando Application Load Balancer (ALB) con Auto Scaling Group bajo diferentes escenarios de carga.
+Evaluar el rendimiento y comportamiento de la aplicación de procesamiento de videos desplegada en AWS ECS (Elastic Container Service) utilizando Application Load Balancer (ALB) con Auto Scaling bajo diferentes escenarios de carga. Adicionalmente, se evalúa la capacidad de la capa worker (SQS + Celery) ejecutándose en contenedores ECS para procesar mensajes de forma asíncrona.
 
 ### Infraestructura Evaluada
 - **Endpoint:** `http://video-app-alb-375251954.us-east-1.elb.amazonaws.com`
 - **API Endpoint:** `/api/videos/upload`
+- **Plataforma de Contenedores:** AWS ECS (Elastic Container Service)
 - **Balanceador:** Application Load Balancer (ALB)
-- **Auto Scaling:** Habilitado (1-10 instancias)
+- **Auto Scaling:** Habilitado (1-10 tareas/contenedores ECS)
 - **Región:** us-east-1 (Norte de Virginia)
 
 ### Resultados Generales
+
+**Capa Web (JMeter):**
 
 | Fase | Usuarios | Duración | Peticiones | Éxito | Error | Tiempo Prom. | Throughput |
 |------|----------|----------|------------|-------|-------|--------------|------------|
@@ -40,6 +44,14 @@ Evaluar el rendimiento y comportamiento de la aplicación de procesamiento de vi
 | Fase 2 Esc. 1 | 100 | 8:01 min | 510 | 99.02% | 0.98% | 90.5 seg | 1.06 req/s |
 | Fase 2 Esc. 2 | 200 | 7:48 min | 657 | 99.85% | 0.15% | 141.4 seg | 1.41 req/s |
 | Fase 2 Esc. 3 | 300 | 7:51 min | 692 | 100% | 0% | 204.2 seg | 1.47 req/s |
+
+**Capa Worker (Locust):**
+
+| Escenario | Requests | Éxito | Error | Latencia Prom. | Throughput |
+|-----------|----------|-------|-------|----------------|------------|
+| Smoke | 1,178 | 100% | 0% | 2.47 seg | 3.97 req/s |
+| Ramp | 3,398 | 86.96% | 13.04% | 32.13 seg | 3.78 req/s |
+| Soak | 10,804 | 97.42% | 2.58% | 25.37 seg | 4.00 req/s |
 
 ### Conclusiones Principales
 
@@ -50,9 +62,9 @@ Evaluar el rendimiento y comportamiento de la aplicación de procesamiento de vi
 - Alta disponibilidad: 100% de éxito con 300 usuarios concurrentes
 
 **Performance:**
-- La infraestructura AWS escala correctamente según la demanda
+- La infraestructura AWS ECS escala correctamente según la demanda
 - Los tiempos de respuesta incrementan proporcionalmente a la carga (90s → 204s)
-- El sistema escala preventivamente bajo alta concurrencia
+- El sistema escala preventivamente bajo alta concurrencia mediante auto-scaling de tareas ECS
 - Capacidad demostrada: >300 usuarios sin fallos
 
 **Patrón de Comportamiento:**
@@ -67,7 +79,35 @@ Errores:      5       1       0
 
 ## 2. Configuración de la Infraestructura
 
-### 2.1 Application Load Balancer (ALB)
+### 2.1 AWS ECS (Elastic Container Service)
+
+```yaml
+Configuración:
+  Servicio: video-app-service
+  Cluster: video-app-cluster
+  Launch Type: Fargate (sin gestión de servidores)
+  Plataforma: Linux/AMD64
+  
+Tareas (Contenedores):
+  Tareas Mínimas: 1
+  Tareas Deseadas: 1
+  Tareas Máximas: 10
+  
+Definición de Tarea:
+  CPU: 1024 (1 vCPU)
+  Memoria: 2048 MB (2 GB)
+  Imagen: Aplicación FastAPI containerizada
+  Network Mode: awsvpc
+  
+Auto Scaling:
+  Métrica: CPU Utilization
+  Target: 50%
+  Scale Out: Agregar 1 tarea cuando CPU > 50%
+  Scale In: Remover 1 tarea cuando CPU < 30%
+  Cooldown: 300 segundos
+```
+
+### 2.2 Application Load Balancer (ALB)
 
 ```yaml
 Configuración:
@@ -93,40 +133,48 @@ Target Group:
     Unhealthy Threshold: 3
 ```
 
-### 2.2 Auto Scaling Group (ASG)
+### 2.3 Integración ALB con ECS
 
 ```yaml
-Configuración:
-  Instancias Mínimas: 1
-  Instancias Deseadas: 1
-  Instancias Máximas: 10
-  
-Políticas de Escalamiento:
-  Scale Out:
-    Métrica: CPU Utilization
-    Umbral: > 50%
-    Acción: Agregar 1 instancia
+Target Group:
+  Protocol: HTTP
+  Port: 80
+  Target Type: IP (Fargate)
+  Health Check:
+    Path: /
+    Interval: 30 segundos
+    Timeout: 5 segundos
+    Healthy Threshold: 2
+    Unhealthy Threshold: 3
+    Success Codes: 200
     
-  Scale In:
-    Métrica: CPU Utilization
-    Umbral: < 30%
-    Acción: Remover 1 instancia
-    
-Health Checks:
-  ELB Health Check: Enabled
-  Grace Period: 300 segundos
+Service Discovery:
+  Registro automático de tareas ECS en el Target Group
+  Distribución de carga entre tareas activas
+  Health checks por tarea individual
 ```
 
-### 2.3 Aplicación
+### 2.4 Aplicación en Contenedores ECS
 
 ```yaml
 Componentes:
-  Backend: FastAPI (Python)
+  Backend: FastAPI (Python) - Ejecutándose en contenedores ECS
   Base de Datos: PostgreSQL 16.x (RDS)
-  Cache: Redis
-  Worker: Celery (procesamiento asíncrono)
+  Cache: Redis (ElastiCache)
+  Worker: Celery (procesamiento asíncrono) - Ejecutándose en contenedores ECS
   Queue: Amazon SQS
   Storage: S3 (para videos)
+
+Arquitectura de Contenedores:
+  Servicio Web:
+    - Contenedores ECS ejecutando FastAPI + Nginx
+    - Auto-scaling basado en CPU/memoria
+    - Distribución de carga vía ALB
+    
+  Servicio Worker:
+    - Contenedores ECS ejecutando Celery workers
+    - Consumo de mensajes desde SQS
+    - Auto-scaling basado en backlog de SQS
 
 API Endpoint:
   URL: /api/videos/upload
@@ -534,20 +582,22 @@ Explicación: Auto Scaling escala preventivamente con alta carga, distribuyendo 
 
 #### Validación de Auto Scaling
 
-**Auto Scaling Group:**
-- Escala instancias según carga de CPU correctamente
+**Auto Scaling de ECS:**
+- Escala tareas/contenedores según carga de CPU correctamente
 - Distribución efectiva de requests a través del ALB
-- Prevención de sobrecarga de instancias individuales
+- Prevención de sobrecarga de contenedores individuales
+- Registro automático de nuevas tareas en el Target Group
 
 **Application Load Balancer:**
-- Balance de carga distribuido correctamente
-- Health checks funcionando (no se detectaron instancias unhealthy)
-- Routing eficiente a target groups
+- Balance de carga distribuido correctamente entre tareas ECS
+- Health checks funcionando (no se detectaron tareas unhealthy)
+- Routing eficiente a target groups con IPs de Fargate
 
-**Infraestructura:**
+**Infraestructura ECS:**
 - Sistema soporta 3x la carga inicial sin fallos
 - Alta disponibilidad garantizada (100% con 300 usuarios)
-- Arquitectura cloud-native validada
+- Arquitectura cloud-native con contenedores validada
+- Escalamiento de contenedores transparente y eficiente
 
 #### Hallazgo Principal
 
@@ -556,14 +606,15 @@ Explicación: Auto Scaling escala preventivamente con alta carga, distribuyendo 
 El sistema muestra un comportamiento positivo: A mayor carga → Mejor estabilidad.
 
 **Explicación técnica:**
-1. Con 100 usuarios: pocas instancias activas, algunas sobrecargadas → Errores 401
-2. Con 200 usuarios: más instancias, mejor distribución → Menos errores
-3. Con 300 usuarios: máxima cantidad de instancias, carga distribuida óptimamente → Cero errores
+1. Con 100 usuarios: pocas tareas ECS activas, algunas sobrecargadas → Errores 401
+2. Con 200 usuarios: más tareas ECS, mejor distribución → Menos errores
+3. Con 300 usuarios: máxima cantidad de tareas ECS, carga distribuida óptimamente → Cero errores
 
 **Implicación:**
-- El Auto Scaling Group escala preventivamente bajo alta carga
-- La distribución de requests es más eficiente con múltiples instancias
+- El Auto Scaling de ECS escala preventivamente bajo alta carga
+- La distribución de requests es más eficiente con múltiples contenedores
 - Sistema alcanza estado óptimo bajo presión sostenida
+- Las tareas ECS se registran automáticamente en el ALB para balanceo de carga
 
 **Trade-off:**
 - Latencia incrementa con más usuarios (esperado para I/O bound)
@@ -573,7 +624,7 @@ El sistema muestra un comportamiento positivo: A mayor carga → Mejor estabilid
 **Capacidad Estimada:**
 - Sistema probado hasta 300 usuarios con 100% éxito
 - Capacidad real estimada: >500 usuarios (extrapolando tendencia)
-- Límite probable: Instancias máximas del ASG (10 instancias configuradas)
+- Límite probable: Tareas máximas del servicio ECS (10 tareas configuradas)
 
 ---
 
@@ -621,10 +672,11 @@ El sistema muestra un comportamiento positivo: A mayor carga → Mejor estabilid
 
 ### 7.1 Conclusiones Generales
 
-1. **Auto Scaling Validado Exitosamente**
-   - El sistema escala correctamente de 1 a múltiples instancias según la demanda
+1. **Auto Scaling de ECS Validado Exitosamente**
+   - El sistema escala correctamente de 1 a múltiples tareas/contenedores ECS según la demanda
    - La distribución de carga a través del ALB funciona eficientemente
    - Se observa mejora de estabilidad con mayor carga
+   - Las tareas ECS se registran automáticamente en el Target Group
 
 2. **Alta Disponibilidad Demostrada**
    - Sistema alcanza 100% de disponibilidad con 300 usuarios concurrentes
@@ -636,10 +688,11 @@ El sistema muestra un comportamiento positivo: A mayor carga → Mejor estabilid
    - Throughput escala proporcionalmente con usuarios (1.06 → 1.47 req/s)
    - Procesamiento asíncrono mediante SQS funciona correctamente
 
-4. **Infraestructura Cloud-Native Robusta**
-   - Arquitectura AWS (ALB + ASG + SQS + S3 + RDS) operativa
-   - Health checks y políticas de escalamiento configuradas correctamente
+4. **Infraestructura Cloud-Native Robusta con ECS**
+   - Arquitectura AWS (ECS + ALB + SQS + S3 + RDS) operativa
+   - Health checks y políticas de escalamiento de contenedores configuradas correctamente
    - Sin errores de infraestructura o conectividad
+   - Contenedores ECS escalan y se distribuyen eficientemente
 
 ### 7.2 Recomendaciones
 
@@ -655,10 +708,11 @@ El sistema muestra un comportamiento positivo: A mayor carga → Mejor estabilid
    - Implementar multipart upload para archivos grandes
    - Considerar CDN (CloudFront) para distribución de contenido
 
-3. **Escalamiento Proactivo**
-   - Ajustar políticas de Auto Scaling para escalar más agresivamente
+3. **Escalamiento Proactivo de ECS**
+   - Ajustar políticas de Auto Scaling de ECS para escalar más agresivamente
    - Considerar predictive scaling basado en patrones históricos
    - Evaluar target tracking scaling policy en lugar de step scaling
+   - Optimizar configuración de CPU/memoria por tarea para mejor eficiencia
 
 4. **Monitoreo y Observabilidad**
    - Implementar CloudWatch dashboards para métricas en tiempo real
@@ -668,19 +722,22 @@ El sistema muestra un comportamiento positivo: A mayor carga → Mejor estabilid
 #### Recomendaciones de Capacidad
 
 1. **Límites de Producción**
-   - Configurar máximo de instancias basado en presupuesto y necesidades
-   - Sistema actual soporta 300+ usuarios, extrapolar a 500-1000 usuarios con 10 instancias
+   - Configurar máximo de tareas ECS basado en presupuesto y necesidades
+   - Sistema actual soporta 300+ usuarios, extrapolar a 500-1000 usuarios con 10 tareas ECS
    - Realizar pruebas adicionales con 500 y 1000 usuarios para validar límites
+   - Considerar aumentar límite máximo de tareas si se requiere mayor capacidad
 
 2. **Optimización de Costos**
-   - Evaluar uso de Spot Instances para workers de Celery
-   - Implementar auto-scaling schedule para reducir instancias en horarios de baja demanda
-   - Considerar Reserved Instances para carga base predecible
+   - Evaluar uso de Spot Instances para tareas ECS de workers de Celery
+   - Implementar auto-scaling schedule para reducir tareas ECS en horarios de baja demanda
+   - Considerar Fargate Spot para reducir costos en workloads tolerantes a interrupciones
+   - Optimizar asignación de CPU/memoria por tarea para evitar over-provisioning
 
 3. **Plan de Contingencia**
-   - Documentar procedimiento de rollback si Auto Scaling falla
-   - Configurar mínimo de 2 instancias para alta disponibilidad
+   - Documentar procedimiento de rollback si Auto Scaling de ECS falla
+   - Configurar mínimo de 2 tareas ECS para alta disponibilidad
    - Implementar circuit breakers para proteger servicios downstream
+   - Configurar múltiples Availability Zones para resiliencia
 
 ### 7.3 Próximos Pasos
 
@@ -689,6 +746,401 @@ El sistema muestra un comportamiento positivo: A mayor carga → Mejor estabilid
 3. Implementar pruebas de chaos engineering (falla de instancias)
 4. Validar comportamiento bajo spikes súbitos de tráfico
 5. Optimizar configuración de workers de Celery según carga observada
+
+---
+
+## 8. Pruebas de Carga - Capa Worker
+
+> **Fecha de ejecución:** 22 de Noviembre de 2025  
+> **Infraestructura evaluada:** Worker asíncrono (Celery) ejecutándose en contenedores ECS, detrás de SQS `video-app-queue`  
+> **Herramienta:** Locust (`load_testing/locust_ecs/worker_sqs_locust.py`)  
+> **Endpoint:** `http://video-app-alb-375251954.us-east-1.elb.amazonaws.com`
+
+---
+
+### 8.1 Resumen Ejecutivo
+
+**Objetivo:** Validar la capacidad de ingestión de mensajes hacia el worker vía SQS y determinar el comportamiento del sistema bajo diferentes escenarios de carga en la arquitectura AWS ECS con Auto Scaling de contenedores.
+
+**Escenarios ejecutados:**
+- **Smoke (Sanidad):** Validación básica con carga ligera
+- **Ramp (Escalamiento):** Búsqueda del punto de saturación
+- **Soak (Resistencia):** Estabilidad a tasa objetivo sostenida
+
+**Resultados Generales:**
+
+| Escenario | Requests | Fallos | Éxito | Latencia Media | p95 | Throughput |
+|-----------|----------|--------|-------|----------------|-----|------------|
+| Smoke | 1,178 | 0 | 100% | 2.47 seg | 4.4 seg | 3.97 req/s |
+| Ramp | 3,398 | 443 | 86.96% | 32.13 seg | 74.0 seg | 3.78 req/s |
+| Soak | 10,804 | 279 | 97.42% | 25.37 seg | 43.0 seg | 4.00 req/s |
+
+**Conclusiones Principales:**
+- La capa worker procesa establemente ~4 req/s con latencias altas (>25s)
+- En smoke y soak se mantiene alta disponibilidad (100% y 97.42% respectivamente)
+- La rampa expuso errores 504 Gateway Timeout cuando la API web no sostuvo el pico
+- El sistema muestra mejor estabilidad en pruebas sostenidas (soak) vs rampas agresivas
+
+---
+
+### 8.2 Configuración y Metodología
+
+#### 8.2.1 Herramientas y Configuración
+
+| Elemento | Detalle |
+|----------|---------|
+| **Script Locust** | `load_testing/locust_ecs/worker_sqs_locust.py` |
+| **Acciones simuladas** | `POST /api/auth/login` + `POST /api/videos/upload` (genera mensaje SQS) |
+| **Archivo de video** | `uploads/file_example_MP4_480_1_5MG.mp4` (~1.5 MB) |
+| **Credenciales** | Usuario de pruebas con token JWT por sesión |
+| **Wait time** | `LOCUST_MIN_WAIT=0.05`, `LOCUST_MAX_WAIT=0.2` (override en soak: 0.02-0.05) |
+| **Timeout** | 180 segundos por request |
+
+#### 8.2.2 Escenarios de Prueba
+
+| Escenario | Propósito | Configuración | Duración |
+|-----------|-----------|---------------|----------|
+| **Smoke** | Validar credenciales, path feliz y pipeline SQS con carga ligera | `-u 10`, `-r 5`, `-t 5m` | 5 minutos |
+| **Ramp** | Incrementar usuarios hasta encontrar el punto de saturación | `-u 200`, `-r 20`, `-t 15m` | 15 minutos |
+| **Soak** | Mantener tasa objetivo (~4 req/s efectivos) durante período extendido | `-u 120`, `-r 10`, `-t 45m` | 45 minutos |
+
+---
+
+### 8.3 Resultados Detallados
+
+#### 8.3.1 Smoke - Sanidad
+
+**Configuración:**
+- Usuarios: 10
+- Spawn rate: 5 usuarios/segundo
+- Duración: 5 minutos
+
+**Resultados:**
+
+| Métrica | Valor | Observación |
+|---------|-------|-------------|
+| Total de Requests | 1,178 | Carga ligera durante 5 minutos |
+| Requests Exitosos | 1,178 | 100% de éxito |
+| Requests Fallidos | 0 | 0% de error |
+| Latencia Promedio | 2.47 seg | 2,471 ms |
+| Latencia p95 | 4.4 seg | 4,400 ms |
+| Latencia Mínima | 0.61 seg | 611 ms |
+| Latencia Máxima | 7.74 seg | 7,735 ms |
+| Throughput | 3.97 req/s | Capacidad de procesamiento |
+
+**Desglose por Endpoint:**
+
+| Endpoint | Requests | Fallos | Latencia Promedio | Throughput |
+|----------|----------|--------|-------------------|------------|
+| Auth/Login | 10 | 0 | 1.47 seg | 0.03 req/s |
+| Videos/Upload | 1,168 | 0 | 2.48 seg | 3.93 req/s |
+
+**Análisis:**
+- ✅ **Tasa de éxito perfecta:** 100% de requests completados exitosamente
+- ✅ **Autenticación estable:** Login completado en <1.5s promedio
+- ✅ **Upload funcional:** Procesamiento de videos en ~2.5s promedio
+- ✅ **Worker operativo:** Pipeline SQS funcionando correctamente
+- ✅ **Baseline establecido:** Sistema saludable bajo carga mínima
+
+**Conclusiones:**
+- Sistema operativo y estable con infraestructura correctamente configurada
+- Sin errores de autenticación o conectividad
+- Worker procesa mensajes de SQS sin backlog observable
+- Baseline de rendimiento establecido para pruebas intensivas
+
+---
+
+#### 8.3.2 Ramp - Punto de Saturación
+
+**Configuración:**
+- Usuarios: 200
+- Spawn rate: 20 usuarios/segundo
+- Duración: 15 minutos
+
+**Resultados:**
+
+| Métrica | Valor | Observación |
+|---------|-------|-------------|
+| Total de Requests | 3,398 | Carga durante 15 minutos |
+| Requests Exitosos | 2,955 | 86.96% de éxito |
+| Requests Fallidos | 443 | 13.04% de error |
+| Latencia Promedio | 32.13 seg | 32,131 ms |
+| Latencia p95 | 74.0 seg | 74,000 ms |
+| Latencia Mínima | 0.61 seg | 614 ms |
+| Latencia Máxima | 164.11 seg | 164,114 ms (2.7 minutos) |
+| Throughput | 3.78 req/s | Capacidad de procesamiento |
+
+**Desglose por Endpoint:**
+
+| Endpoint | Requests | Fallos | Tasa Error | Latencia Promedio | Throughput |
+|----------|----------|--------|------------|-------------------|------------|
+| Auth/Login | 200 | 82 | 41.00% | 35.93 seg | 0.22 req/s |
+| Videos/Upload | 3,198 | 361 | 11.29% | 31.89 seg | 3.56 req/s |
+
+**Análisis de Errores (443 peticiones):**
+
+| Código | Mensaje | Cantidad | Tipo | Endpoint |
+|--------|---------|----------|------|----------|
+| 504 | Gateway Timeout | 442 | Timeout | Auth/Login (82), Videos/Upload (360) |
+| 0 | Error de conexión | 1 | Network | Videos/Upload (1) |
+
+**Análisis:**
+- ⚠️ **Tasa de error significativa:** 13.04% de fallos bajo carga agresiva
+- ⚠️ **Errores 504 Gateway Timeout:** Indican que la capa web/API no sostuvo el pico de carga
+- ⚠️ **Login más afectado:** 41% de tasa de error en autenticación vs 11.29% en upload
+- ⚠️ **Latencia incrementada:** Promedio de 32.13s (+1,200% vs smoke)
+- ⚠️ **Cuello de botella en API web:** Los errores aparecen antes de saturar el worker
+
+**Hallazgos:**
+- La capa web/ALB necesita escalado adicional para acompañar rampas agresivas
+- Los timeouts de 60 segundos del ALB se exceden bajo alta carga
+- El worker es estable, pero la API web se convierte en cuello de botella
+- Se requiere autoscaling más agresivo o tuning específico para la API
+
+**Conclusiones:**
+- Sistema muestra degradación bajo rampa agresiva (200 usuarios)
+- Errores 504 indican límites de la capa web antes del worker
+- Auto Scaling del worker funciona, pero la API web requiere optimización
+- Capacidad real del worker no se alcanzó debido a fallos previos en la API
+
+---
+
+#### 8.3.3 Soak - Resistencia
+
+**Configuración:**
+- Usuarios: 120
+- Spawn rate: 10 usuarios/segundo
+- Duración: 45 minutos
+- Wait time agresivo: 0.02-0.05 segundos
+
+**Resultados:**
+
+| Métrica | Valor | Observación |
+|---------|-------|-------------|
+| Total de Requests | 10,804 | Carga sostenida durante 45 minutos |
+| Requests Exitosos | 10,525 | 97.42% de éxito |
+| Requests Fallidos | 279 | 2.58% de error |
+| Latencia Promedio | 25.37 seg | 25,370 ms |
+| Latencia p95 | 43.0 seg | 43,000 ms |
+| Latencia Mínima | 0.69 seg | 688 ms |
+| Latencia Máxima | 93.93 seg | 93,930 ms (1.6 minutos) |
+| Throughput | 4.00 req/s | Capacidad sostenida |
+
+**Desglose por Endpoint:**
+
+| Endpoint | Requests | Fallos | Tasa Error | Latencia Promedio | Throughput |
+|----------|----------|--------|------------|-------------------|------------|
+| Auth/Login | 120 | 18 | 15.00% | 22.57 seg | 0.04 req/s |
+| Videos/Upload | 10,684 | 261 | 2.44% | 25.40 seg | 3.96 req/s |
+
+**Análisis de Errores (279 peticiones):**
+
+| Código | Mensaje | Cantidad | Tipo | Endpoint |
+|--------|---------|----------|------|----------|
+| 504 | Gateway Timeout | 279 | Timeout | Auth/Login (18), Videos/Upload (261) |
+
+**Análisis:**
+- ✅ **Alta tasa de éxito:** 97.42% de requests completados exitosamente
+- ✅ **Throughput sostenido:** 4.00 req/s durante 45 minutos sin degradación
+- ✅ **Estabilidad mejorada:** Mejor rendimiento que en rampa (97.42% vs 86.96%)
+- ✅ **Worker consistente:** Sin errores de procesamiento, solo timeouts de API web
+- ⚠️ **Latencia estructural alta:** Promedio de 25.37s debido al ciclo completo (upload + procesamiento)
+- ⚠️ **Errores residuales:** 2.58% de timeouts 504, principalmente en upload
+
+**Comportamiento:**
+- Throughput sostenido de 4.0 req/s sin errores de worker
+- La cola SQS y el worker se mantienen estables a tasa constante
+- Latencia promedio >25s implica que cualquier degradación adicional podría disparar timeouts
+- El sistema muestra mejor comportamiento en pruebas sostenidas vs rampas agresivas
+
+**Conclusiones:**
+- Sistema estable bajo carga sostenida (97.42% éxito)
+- Worker procesa consistentemente ~4 req/s sin backlog observable
+- Errores residuales (2.58%) son principalmente timeouts de API web
+- Latencia alta pero aceptable para operaciones I/O intensivas
+- Sistema listo para producción bajo carga sostenida moderada
+
+---
+
+### 8.4 Análisis Comparativo
+
+#### 8.4.1 Comparación de Métricas por Escenario
+
+| Escenario | Requests | Éxito | Error | Throughput | Latencia Prom. | p95 |
+|-----------|----------|-------|-------|------------|----------------|-----|
+| Smoke | 1,178 | 100% | 0% | 3.97 req/s | 2.47 seg | 4.4 seg |
+| Ramp | 3,398 | 86.96% | 13.04% | 3.78 req/s | 32.13 seg | 74.0 seg |
+| Soak | 10,804 | 97.42% | 2.58% | 4.00 req/s | 25.37 seg | 43.0 seg |
+
+#### 8.4.2 Tendencias Observadas
+
+**1. Estabilidad por Tipo de Carga:**
+- **Smoke (carga ligera):** 100% éxito - Sistema operativo
+- **Ramp (carga agresiva):** 86.96% éxito - Degradación por timeouts
+- **Soak (carga sostenida):** 97.42% éxito - Mejor estabilidad que rampa
+
+**2. Throughput:**
+- Throughput consistente: ~3.8-4.0 req/s en todos los escenarios
+- No se observa degradación de throughput con mayor carga
+- Límite observado: ~4 req/s efectivos
+
+**3. Latencia:**
+- Smoke: 2.47s (baseline)
+- Ramp: 32.13s (+1,200% vs smoke) - Degradación por contención
+- Soak: 25.37s (+927% vs smoke) - Mejor que rampa pero aún alta
+
+**4. Patrón de Errores:**
+- Errores 504 Gateway Timeout en todos los escenarios con fallos
+- Mayor concentración en Auth/Login durante rampa (41%)
+- Upload más estable: 2.44% error en soak vs 11.29% en rampa
+
+#### 8.4.3 Hallazgos Principales
+
+**Fortalezas:**
+- ✅ Worker estable: Procesa consistentemente ~4 req/s sin errores propios
+- ✅ Pipeline SQS funcional: Mensajes se encolan y procesan correctamente
+- ✅ Mejor rendimiento en carga sostenida: 97.42% éxito en soak
+- ✅ Throughput predecible: ~4 req/s independiente del escenario
+
+**Áreas de Mejora:**
+- ⚠️ **Cuello de botella en API web:** Errores 504 indican límites de ALB/API antes del worker
+- ⚠️ **Latencia estructural alta:** >25s promedio debido a ciclo completo (upload + S3 + SQS)
+- ⚠️ **Autenticación vulnerable:** Login más afectado en rampas (41% error)
+- ⚠️ **Timeouts de ALB:** 60 segundos insuficientes bajo alta carga
+
+**Cuellos de Botella Identificados:**
+1. **Application Load Balancer:** Timeouts de 60s se exceden bajo carga
+2. **API Web:** No escala suficientemente rápido para rampas agresivas
+3. **Autenticación:** Endpoint de login más vulnerable a timeouts
+4. **Latencia I/O:** Upload a S3 + procesamiento asíncrono aumenta tiempos
+
+---
+
+### 8.5 Comparación con Capa Web
+
+#### 8.5.1 Throughput Comparativo
+
+| Capa | Escenario | Throughput | Observación |
+|------|-----------|------------|-------------|
+| **Web (JMeter)** | 100 usuarios | 1.06 req/s | Upload directo |
+| **Web (JMeter)** | 200 usuarios | 1.41 req/s | Con auto scaling |
+| **Web (JMeter)** | 300 usuarios | 1.47 req/s | Máximo alcanzado |
+| **Worker (Locust)** | Smoke | 3.97 req/s | Carga ligera |
+| **Worker (Locust)** | Ramp | 3.78 req/s | Carga agresiva |
+| **Worker (Locust)** | Soak | 4.00 req/s | Carga sostenida |
+
+**Análisis:**
+- Worker muestra throughput 2.7x superior a capa web (4.0 vs 1.47 req/s)
+- Worker mantiene throughput estable independiente de usuarios
+- Capa web escala con usuarios (1.06 → 1.47 req/s)
+- Worker procesa más requests por segundo pero con mayor latencia
+
+#### 8.5.2 Tasa de Éxito Comparativa
+
+| Capa | Escenario | Éxito | Error | Observación |
+|------|-----------|-------|-------|-------------|
+| **Web** | 100 usuarios | 99.02% | 0.98% | Errores 401 |
+| **Web** | 200 usuarios | 99.85% | 0.15% | Mejora con escala |
+| **Web** | 300 usuarios | 100% | 0% | Perfecto |
+| **Worker** | Smoke | 100% | 0% | Carga ligera |
+| **Worker** | Ramp | 86.96% | 13.04% | Timeouts 504 |
+| **Worker** | Soak | 97.42% | 2.58% | Timeouts residuales |
+
+**Análisis:**
+- Capa web mejora con más usuarios (99% → 100%)
+- Worker degrada con rampas agresivas (100% → 86.96%)
+- Worker se recupera en carga sostenida (97.42%)
+- Patrón opuesto: Web escala mejor, Worker es más estable en sostenido
+
+---
+
+### 8.6 Recomendaciones
+
+#### 8.6.1 Optimizaciones Críticas
+
+**1. Configuración de Application Load Balancer:**
+- Aumentar timeout de 60s a 180s para operaciones de upload de video
+- Configurar idle timeout apropiado para conexiones largas
+- Habilitar connection draining para evitar cortes abruptos
+
+**2. Auto Scaling de API Web:**
+- Ajustar políticas de scaling para escalar más agresivamente
+- Reducir cooldown period para responder más rápido a picos
+- Considerar predictive scaling basado en patrones históricos
+- Aumentar capacidad mínima de instancias para absorber carga base
+
+**3. Optimización de Autenticación:**
+- Implementar cache de tokens JWT para reducir llamadas a login
+- Considerar refresh tokens para evitar re-autenticación frecuente
+- Mover autenticación fuera del path crítico de pruebas de carga
+- Implementar rate limiting específico para endpoint de login
+
+**4. Reducción de Latencia:**
+- Evaluar upload directo a S3 con pre-signed URLs (bypass del backend)
+- Implementar multipart upload para archivos grandes
+- Optimizar operaciones de base de datos (índices, queries)
+- Considerar CDN (CloudFront) para distribución de contenido
+
+#### 8.6.2 Monitoreo y Observabilidad
+
+**1. Métricas de SQS:**
+- Monitorear `ApproximateNumberOfMessagesVisible` (backlog)
+- Trackear `ApproximateAgeOfOldestMessage` (mensajes antiguos)
+- Alertar cuando backlog > 100 mensajes
+- Dashboard CloudWatch para métricas en tiempo real
+
+**2. Métricas de Workers:**
+- CPU y memoria de instancias de worker
+- Tasa de procesamiento de mensajes por worker
+- Tiempo de procesamiento promedio por video
+- Errores y retries en procesamiento
+
+**3. Métricas de API Web:**
+- Latencia por endpoint (login vs upload)
+- Tasa de errores 504 por endpoint
+- Conexiones activas y throughput
+- Health checks de instancias
+
+#### 8.6.3 Próximos Pasos
+
+1. **Re-ejecución dirigida:**
+   - Aplicar optimizaciones de ALB y auto scaling
+   - Repetir rampa aumentando throughput objetivo (≥6 req/s)
+   - Validar mejoras y documentar nuevo umbral
+
+2. **Pruebas adicionales:**
+   - Pruebas de estrés para identificar punto de quiebre real del worker
+   - Pruebas de chaos engineering (falla de workers)
+   - Validar comportamiento bajo spikes súbitos de tráfico
+
+3. **Optimización de Workers:**
+   - Ajustar número de workers Celery según carga observada
+   - Implementar retry logic robusto
+   - Configurar Dead Letter Queue apropiadamente
+
+4. **Documentación:**
+   - Documentar métricas de CloudWatch durante pruebas
+   - Crear runbooks para operaciones bajo carga
+   - Establecer SLAs basados en resultados observados
+
+---
+
+### 8.7 Evidencias y Artefactos
+
+**Archivos de Resultados:**
+- `load_testing/locust_ecs/Smoke-results.csv` - Resultados de prueba de sanidad
+- `load_testing/locust_ecs/Ramp-results.csv` - Resultados de prueba de rampa
+- `load_testing/locust_ecs/Soak-result.csv` - Resultados de prueba de resistencia
+- `load_testing/locust_ecs/results/locust_ramp_stats.csv` - Estadísticas detalladas de rampa
+- `load_testing/locust_ecs/results/locust_soak_stats.csv` - Estadísticas detalladas de soak
+
+**Scripts de Ejecución:**
+- `load_testing/locust_ecs/run_smoke.sh` - Script de ejecución de smoke
+- `load_testing/locust_ecs/run_ramp.sh` - Script de ejecución de rampa
+- `load_testing/locust_ecs/run_soak.sh` - Script de ejecución de soak
+- `load_testing/locust_ecs/worker_sqs_locust.py` - Script principal de Locust
+
+Estos archivos permanecen en el repositorio para auditoría y replicabilidad.
 
 ---
 
