@@ -30,6 +30,8 @@ Para instrucciones detalladas de instalación, configuración y uso del proyecto
 
 📖 **[Documentación Completa - Entrega 4](docs/Entrega_4/README.md)**
 
+📖 **[Documentación Completa - Entrega 5](docs/Entrega_5/README.md)**
+
 ## Inicio Rápido
 
 ```bash
