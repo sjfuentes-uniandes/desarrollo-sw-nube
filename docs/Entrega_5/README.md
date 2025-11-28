@@ -17,7 +17,7 @@
 ![Diagrama de despliegue](../images/Despliegue_entrega5.png)
 
 ### Diagrama de arquitectura en aws
-![Diagrama de arquitectura en aws](../images/AwsEntrega5.png)
+![Diagrama de arquitectura en aws](../images/AWSEntrega5.png)
 
 ### Diagrama de flujo de procesos
 ![Flujo de procesos](../images/diagrama_flujo_procesos.png)
